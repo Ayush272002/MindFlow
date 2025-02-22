@@ -179,7 +179,7 @@ export default function UploadModule() {
       });
 
       setNotes("");
-      router.push("/chat");
+      router.push("/learn/chat");
     } catch (error) {
       console.error(error);
       toast.error("There was an error processing your content");
