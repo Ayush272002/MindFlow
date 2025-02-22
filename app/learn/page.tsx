@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import Navbar from "@/components/custom/navbar";
 import { UploadClient } from "@uploadcare/upload-client";
+import { useRouter } from "next/navigation";
 
 const client = new UploadClient({
   publicKey: process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY!,
@@ -39,6 +40,8 @@ const scaleIn = {
 };
 
 export default function UploadModule() {
+  const router = useRouter();
+
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -175,6 +178,7 @@ export default function UploadModule() {
       });
 
       setNotes("");
+      router.push("/chat");
     } catch (error) {
       console.error(error);
       toast.error("There was an error processing your content");

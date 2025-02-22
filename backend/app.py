@@ -19,7 +19,6 @@ os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 
 def download_file(file_url):
-    """Download file from a URL and save it locally."""
     print(file_url)
     print(file_url.split("/"))
     local_filename = DOWNLOADS_DIR + file_url.split("/")[-2] + ".pdf"
@@ -32,10 +31,10 @@ def download_file(file_url):
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
 
-        return local_filename  # Return full file path
+        return local_filename  
     except requests.exceptions.RequestException as e:
         print(f"Error downloading file: {e}")
-        return None  # Handle download failures
+        return None  
 
 
 def extract_text_from_pdf(pdf_path):
@@ -47,7 +46,6 @@ def extract_text_from_pdf(pdf_path):
 
 
 def process_with_gemini(text):
-    """Use Gemini API to generate interactive learning content."""
     model = genai.GenerativeModel("gemini-pro")
     prompt = f"Create an interactive learning module from this content:\n\n{text}"
     
@@ -61,16 +59,15 @@ def process_with_gemini(text):
 
 @app.route("/process-content", methods=["POST"])
 def process_content():
-    """Handle content processing from user notes or uploaded files."""
     data = request.json
     notes = data.get("notes", "")
-    files = data.get("files", [])  # Expecting URLs of files
+    files = data.get("files", [])  
 
-    extracted_text = notes.strip()  # Start with user notes
+    extracted_text = notes.strip()  
     processed_results = []
 
     for file_url in files:
-        pdf_path = download_file(file_url)  # Download the file
+        pdf_path = download_file(file_url)  
         if pdf_path and pdf_path.endswith(".pdf"):
             text = extract_text_from_pdf(pdf_path)
             extracted_text += f"\n\n{text}"
