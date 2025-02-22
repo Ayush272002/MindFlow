@@ -77,7 +77,7 @@ export default function UploadModule() {
   const handleFiles = async (files: File[]) => {
     setUploading(true);
     setProgress(0);
-    let uploadedData: { name: string; url: string }[] = [];
+    const uploadedData: { name: string; url: string }[] = [];
 
     for (const file of files) {
       try {
