@@ -69,10 +69,11 @@ export interface LearningState {
   sessionHistory: SessionHistoryEntry[];
   difficulty: Difficulty;
   lastQuizScore?: number;
+  lastQuizAnswer?: string;
 }
 
 export interface OrchestratorResponse {
-  action: 'explain' | 'quiz' | 'feedback' | 'summarize' | 'complete';
+  action: 'start' | 'explain' | 'quiz' | 'feedback' | 'summarize' | 'complete';
   agentCalls: string[];
   userPrompt: string;
   stateUpdate: {
@@ -93,19 +94,41 @@ export interface ExplainerInput {
   subtopic: string;
   userLevel: Difficulty;
   previousFeedback?: string;
+  context?: {
+    mainTopic: string;
+    currentPath: string[];
+    previousExplanations: string[];
+  };
 }
 
 export interface QuizMasterInput {
   subtopic: string;
   userPerformance: number;
   difficulty: Difficulty;
+  context?: {
+    topic: string;
+    explanation?: string;
+    learningPath?: string[];
+    currentProgress?: {
+      completedSubtopics: string[];
+      masteredConcepts: string[];
+    };
+  };
 }
 
 export interface FeedbackInput {
   concept: string;
   userAnswer: string;
   correctAnswer: string;
-  previousExplanations?: string[];
+  context?: {
+    topic: string;
+    subtopic: string;
+    previousExplanations: string[];
+    progress: {
+      completedSubtopics: string[];
+      masteredConcepts: string[];
+    };
+  };
 }
 
 export interface RetentionInput {
