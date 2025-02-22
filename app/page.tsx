@@ -105,9 +105,11 @@ export default function Home() {
             <Button className="bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90 text-white px-12 py-8 text-xl rounded-2xl">
               Start Now
             </Button>
-            <Button variant="outline" className="px-12 py-8 text-xl rounded-2xl border-2">
-              Leaderboard
-            </Button>
+            <Link href="/leaderboard">
+              <Button variant="outline" className="px-12 py-8 text-xl rounded-2xl border-2">
+                Leaderboard
+              </Button>
+            </Link>
           </motion.div>
         </motion.div>
       </section>
