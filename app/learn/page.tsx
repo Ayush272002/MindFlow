@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import Navbar from "@/components/custom/navbar";
+import { useRouter } from "next/navigation";
 
 const fadeInUp = {
   initial: { opacity: 0, y: 15 },
@@ -34,6 +35,8 @@ const scaleIn = {
 };
 
 export default function UploadModule() {
+  const router = useRouter();
+
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -63,6 +66,26 @@ export default function UploadModule() {
     }
   };
 
+  const processWithGemini = async (content: string) => {
+    try {
+      const response = await fetch("/api/generate-module", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) throw new Error("Failed to process content");
+
+      const data = await response.json();
+      return data.moduleId;
+    } catch (error) {
+      console.error("Error processing content:", error);
+      throw error;
+    }
+  };
+
   const handleFiles = async (files: File[]) => {
     setUploading(true);
     setProgress(0);
@@ -82,11 +105,15 @@ export default function UploadModule() {
       }
 
       try {
-        await simulateFileUpload(file);
+        const content = await file.text();
+
+        const moduleId = await processWithGemini(content);
+
         toast.success(`${file.name} has been converted to a learning module`, {
           icon: <Sparkles className="w-4 h-4" />,
         });
-      } catch {
+        router.push(`/module/${moduleId}`);
+      } catch (error) {
         toast.error("There was an error processing your file");
       }
     }
@@ -151,11 +178,14 @@ export default function UploadModule() {
     setProgress(0);
 
     try {
-      await simulateFileUpload(new File([""], "notes.txt"));
+      const moduleId = await processWithGemini(notes);
+
       toast.success("Your content is being processed", {
         icon: <Sparkles className="w-4 h-4" />,
       });
+
       setNotes("");
+      router.push(`/module/${moduleId}`);
     } catch {
       toast.error("There was an error processing your content");
     }
