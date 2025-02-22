@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import { useState } from "react"
 import { Search, ChevronDown } from "lucide-react"
 import Navbar from "@/components/custom/navbar"
+import Link from "next/link"
 
 const fadeInUp = {
   initial: { opacity: 0, y: 15 },
@@ -66,7 +67,7 @@ export default function Leaderboard() {
   return (
     <main className="min-h-screen bg-[#fafafa]">
       {/* Navbar */}
-      <Navbar loggedIn={false} />
+      <Navbar loggedIn={true} />
 
       {/* Leaderboard header */}
       <section className="container mx-auto px-4 pt-16 pb-8">
@@ -208,9 +209,11 @@ export default function Leaderboard() {
               ease: [0.22, 1, 0.36, 1],
             }}
           >
-            <Button className="bg-white text-blue-600 hover:bg-blue-50 px-12 py-6 text-xl rounded-2xl font-semibold">
-              Start Learning
-            </Button>
+            <Link href="/learn">
+              <Button className="bg-white text-blue-600 hover:bg-blue-50 px-12 py-6 text-xl rounded-2xl font-semibold">
+                Start Learning
+              </Button>
+            </Link>
           </motion.div>
         </motion.div>
       </section>
