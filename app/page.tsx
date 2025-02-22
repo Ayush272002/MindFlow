@@ -3,6 +3,20 @@ import { Button } from "@/components/ui/button"
 export default function Home() {
   return (
     <main className="min-h-screen bg-[#fafafa]">
+      {/* Navbar */}
+      <nav className="sticky top-0 w-full backdrop-blur-md bg-white/75 border-b border-gray-200/20 z-50">
+        <div className="container mx-auto px-4">
+          <div className="h-20 flex items-center justify-between">
+            <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600">
+              MindFlow
+            </span>
+            <Button variant="outline" className="px-6 py-2 rounded-xl">
+              Login
+            </Button>
+          </div>
+        </div>
+      </nav>
+
       {/* hero section */}
       <section className="container mx-auto px-4 py-32 flex flex-col items-center">
         <div className="max-w-4xl text-center">
