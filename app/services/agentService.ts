@@ -1,50 +1,81 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import {
-  TOPIC_MAPPER_INSTRUCTIONS,
-  EXPLAINER_INSTRUCTIONS,
-  QUIZ_MASTER_INSTRUCTIONS,
-  FEEDBACK_INSTRUCTIONS,
-  RETENTION_INSTRUCTIONS,
-  SUMMARIZER_INSTRUCTIONS,
-  ORCHESTRATOR_INSTRUCTIONS,
-  SAFETY_AGENT_INSTRUCTIONS
+  EXPLORATION_AGENT_INSTRUCTIONS,
+  DEEP_DIVE_AGENT_INSTRUCTIONS,
+  INTERACTIVE_AGENT_INSTRUCTIONS,
+  QUESTION_AGENT_INSTRUCTIONS,
+  ANSWER_EVAL_AGENT_INSTRUCTIONS,
+  AGENT_CLASSIFIER_INSTRUCTIONS,
+  CONFIG_AGENT_INSTRUCTIONS,
+  SAFETY_AGENT_INSTRUCTIONS,
+  FLASHCARD_AGENT_INSTRUCTIONS,
+  CHEATSHEET_AGENT_INSTRUCTIONS,
+  MERMAID_AGENT_INSTRUCTIONS,
+  SUMMARY_CONSOLIDATION_AGENT_INSTRUCTIONS
 } from '../data/agents';
 
 import { getLocationBasedResources } from '../data/crisisResources';
-import { SafetyCheck } from '../types/agents';
+import { SafetyStatus } from '../types/newAgents';
 
 import type {
-  TopicMapperResponse,
-  ExplainerResponse,
-  QuizQuestion,
-  FeedbackResponse,
-  RetentionResponse,
-  SummarizerResponse,
-  OrchestratorResponse,
-  LearningState,
-  TopicMapperInput,
-  ExplainerInput,
-  QuizMasterInput,
-  FeedbackInput,
-  RetentionInput,
-  SummarizerInput,
-  SessionHistoryEntry,
-  SafetyAgentResponse,
-  SafetyAgentInput
-} from '../types/agents';
+  ExplorationAgentInput,
+  ExplorationAgentOutput,
+  DeepDiveAgentInput,
+  DeepDiveAgentOutput,
+  InteractiveAgentInput,
+  InteractiveAgentOutput,
+  QuestionAgentInput,
+  QuestionAgentOutput,
+  AnswerEvalAgentInput,
+  AnswerEvalAgentOutput,
+  AgentClassifierInput,
+  AgentClassifierOutput,
+  ConfigAgentInput,
+  ConfigAgentOutput,
+  SafetyAgentInput,
+  SafetyAgentOutput,
+  FlashcardAgentInput,
+  FlashcardAgentOutput,
+  CheatsheetAgentInput,
+  CheatsheetAgentOutput,
+  MermaidAgentInput,
+  MermaidAgentOutput,
+  SummaryConsolidationAgentInput,
+  SummaryConsolidationAgentOutput
+} from '../types/newAgents';
+
+interface LearningState {
+  currentTopic: string;
+  activeSubtopic: string;
+  learningPath: string[];
+  progress: {
+    completedSubtopics: string[];
+    masteredConcepts: string[];
+    needsReview: string[];
+  };
+  sessionHistory: SessionHistoryEntry[];
+  difficulty: string;
+  lastQuizScore?: number;
+  lastQuizAnswer?: string;
+}
+
+interface SessionHistoryEntry {
+  timestamp: string;
+  type: 'explanation' | 'quiz' | 'feedback' | 'summary';
+  content: string;
+  outcome?: string;
+}
 
 // Main service class that handles all AI agent interactions
 export class AgentService {
-  private genAI: any;
+  private genAI: GoogleGenerativeAI;
   private model: any;
   private learningState: LearningState;
-  private userIp?: string;
 
-  constructor(apiKey: string, userIp?: string) {
+  constructor(apiKey: string) {
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
     this.learningState = this.initializeLearningState();
-    this.userIp = userIp;
   }
 
   // Sets up initial learning state with default values
@@ -66,26 +97,69 @@ export class AgentService {
   // Handles communication with the AI model
   private async callAgent(instructions: string, input: any): Promise<any> {
     try {
-      const prompt = `${instructions}\n\nINPUT:\n${JSON.stringify(input, null, 2)}`;
-      const result = await this.model.generateContent(prompt);
+      const chat = this.model.startChat({
+        history: [
+          {
+            role: 'user',
+            parts: [{ text: instructions }]
+          },
+          {
+            role: 'model',
+            parts: [{ text: 'I understand my role and instructions. Ready to process input.' }]
+          }
+        ]
+      });
+
+      const result = await chat.sendMessage(JSON.stringify({
+        ...input,
+        responseFormat: 'json',
+        formatInstructions: 'Return only valid JSON without any markdown formatting or additional text.'
+      }));
       const response = await result.response;
+      const text = response.text();
+      
+      // Clean the response text to handle potential markdown
+      const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
       
       try {
-        return JSON.parse(response.text());
-      }
-      
-      catch (parseError) {
+        return JSON.parse(cleanedText);
+      } catch (parseError) {
+        console.error('Parse error:', parseError);
+        console.error('Raw text:', text);
+        console.error('Cleaned text:', cleanedText);
+        
+        // Try to extract JSON from markdown response
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            return JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            console.error('Secondary parse error:', e);
+          }
+        }
+        
         throw new Error('PARSE_ERROR');
       }
-    }
-    
-    catch (error: any) {
-      // Special handling for safety-related errors
+    } catch (error: any) {
+      console.log('\n=== Agent Call Error ===');
+      console.log('Error:', error);
+      
+      if (instructions === EXPLORATION_AGENT_INSTRUCTIONS) {
+        const fallback: ExplorationAgentOutput = {
+          subtopics: ['Basic Overview'],
+          broaderTopic: input.userPrompt,
+          prerequisites: [],
+          summary: "I apologize, but I encountered an error processing your request. Let's start with the basics."
+        };
+        return fallback;
+      }
+      
       if (error.message?.includes('SAFETY') || error.message === 'PARSE_ERROR') {
-        return {
-          status: SafetyCheck.NEEDS_HELP,
+        const safetyResponse: SafetyAgentOutput = {
+          status: SafetyStatus.NEEDS_HELP,
           explanation: "Support resources available"
         };
+        return safetyResponse;
       }
       throw error;
     }
@@ -93,69 +167,79 @@ export class AgentService {
 
   // Adds a new entry to session history with timestamp
   private addToSessionHistory(entry: SessionHistoryEntry) {
-    this.learningState.sessionHistory.push({
-      ...entry,
-      timestamp: new Date().toISOString()
-    });
+    this.learningState.sessionHistory.push(entry);
   }
 
   // Begins a new learning topic
-  async startNewTopic(topic: string, userBackground?: string): Promise<OrchestratorResponse> {
-    const topicMapperInput: TopicMapperInput = {
-      topic,
-      userBackground
+  async startNewTopic(topic: string, userBackground?: string): Promise<ExplorationAgentOutput> {
+    const explorationInput: ExplorationAgentInput = {
+      userPrompt: topic,
+      latestContextSummary: ''
     };
     
-    // Get the learning path from topic mapper
-    const topicMap = await this.callAgent(
-      TOPIC_MAPPER_INSTRUCTIONS,
-      topicMapperInput
-    ) as TopicMapperResponse;
+    const exploration = await this.callAgent(
+      EXPLORATION_AGENT_INSTRUCTIONS,
+      explorationInput
+    ) as ExplorationAgentOutput;
 
     // Reset and update learning state
     this.learningState = {
       ...this.initializeLearningState(),
       currentTopic: topic,
-      learningPath: topicMap.suggestedPath
+      learningPath: exploration.subtopics
     };
 
     // Add to session history
     this.addToSessionHistory({
       type: 'explanation',
-      content: topicMap.overview,
+      content: exploration.summary,
       timestamp: new Date().toISOString()
     });
 
-    // Get initial orchestrator response / learning plan
-    return await this.callAgent(
-      ORCHESTRATOR_INSTRUCTIONS,
-      {
-        action: 'start',
-        topicMap,
-        learningState: this.learningState
-      }
-    ) as OrchestratorResponse;
+    return exploration;
   }
 
   // Gets explanation for a subtopic
-  async getExplanation(subtopic: string): Promise<ExplainerResponse> {
-    const input: ExplainerInput = {
+  async getExplanation(subtopic: string): Promise<DeepDiveAgentOutput> {
+    const input: DeepDiveAgentInput = {
       subtopic,
-      userLevel: this.learningState.difficulty,
-      previousFeedback: this.learningState.sessionHistory
-        .filter(h => h.type === 'feedback')
+      broaderTopic: this.learningState.currentTopic,
+      latestContextSummary: this.learningState.sessionHistory
         .map(h => h.content)
         .join('\n')
     };
 
     const explanation = await this.callAgent(
-      EXPLAINER_INSTRUCTIONS,
+      DEEP_DIVE_AGENT_INSTRUCTIONS,
       input
-    ) as ExplainerResponse;
+    ) as DeepDiveAgentOutput;
+
+    // Validate the explanation response
+    if (!explanation || typeof explanation !== 'object') {
+      throw new Error('Invalid explanation response format');
+    }
+
+    if (!explanation.breakdown || typeof explanation.breakdown !== 'string') {
+      throw new Error('Invalid explanation content format');
+    }
+
+    // Format the content to include all components
+    const formattedContent = `
+# ${subtopic}
+
+${explanation.breakdown}
+
+${explanation.analogy ? '\n## Analogy\n' + explanation.analogy : ''}
+${explanation.mermaidDiagram ? '\n## Diagram\n```mermaid\n' + explanation.mermaidDiagram + '\n```' : ''}
+${explanation.codeExample ? '\n## Code Example\n```\n' + explanation.codeExample + '\n```' : ''}
+    `.trim();
+
+    // Update explanation content with formatted version
+    explanation.breakdown = formattedContent;
 
     this.addToSessionHistory({
       type: 'explanation',
-      content: explanation.content,
+      content: explanation.breakdown,
       timestamp: new Date().toISOString()
     });
 
@@ -163,200 +247,97 @@ export class AgentService {
   }
 
   // Generates a quiz question for given subtopic
-  async getQuizQuestion(subtopic: string): Promise<QuizQuestion> {
-    const input: QuizMasterInput = {
+  async getQuizQuestion(subtopic: string): Promise<QuestionAgentOutput> {
+    const input: QuestionAgentInput = {
       subtopic,
-      userPerformance: this.learningState.lastQuizScore || 0,
-      difficulty: this.learningState.difficulty
+      broaderTopic: this.learningState.currentTopic,
+      latestContextSummary: this.learningState.sessionHistory
+        .map(h => h.content)
+        .join('\n')
     };
 
-    return await this.callAgent(
-      QUIZ_MASTER_INSTRUCTIONS,
+    const quiz = await this.callAgent(
+      QUESTION_AGENT_INSTRUCTIONS,
       input
-    ) as QuizQuestion;
+    ) as QuestionAgentOutput;
+
+    // Validate quiz content
+    if (!quiz || typeof quiz !== 'object') {
+      throw new Error('Invalid quiz response format');
+    }
+
+    if (!quiz.question || typeof quiz.question !== 'string') {
+      throw new Error('Invalid quiz question format');
+    }
+
+    if (quiz.type === 'MCQ' && (!quiz.options || !Array.isArray(quiz.options) || quiz.options.length === 0)) {
+      throw new Error('Invalid quiz options format');
+    }
+
+    // Store the correct answer for feedback
+    this.learningState.lastQuizAnswer = quiz.correctAnswer;
+
+    return quiz;
   }
 
   // Provides feedback on user's answer
-  async getFeedback(concept: string, userAnswer: string, correctAnswer: string): Promise<FeedbackResponse> {
-    const input: FeedbackInput = {
-      concept,
-      userAnswer,
-      correctAnswer,
-      previousExplanations: this.learningState.sessionHistory
-        .filter(h => h.type === 'explanation')
+  async getFeedback(subtopic: string, userAnswer: string): Promise<AnswerEvalAgentOutput> {
+    const input: AnswerEvalAgentInput = {
+      subtopic,
+      broaderTopic: this.learningState.currentTopic,
+      questionAsked: this.learningState.sessionHistory
+        .filter(h => h.type === 'quiz')
         .map(h => h.content)
+        .slice(-1)[0],
+      userQuestionAnswer: userAnswer,
+      latestContextSummary: this.learningState.sessionHistory
+        .map(h => h.content)
+        .join('\n')
     };
 
     const feedback = await this.callAgent(
-      FEEDBACK_INSTRUCTIONS,
+      ANSWER_EVAL_AGENT_INSTRUCTIONS,
       input
-    ) as FeedbackResponse;
+    ) as AnswerEvalAgentOutput;
+
+    // Validate feedback response
+    if (!feedback || typeof feedback !== 'object') {
+      throw new Error('Invalid feedback response format');
+    }
+
+    if (typeof feedback.isCorrect !== 'boolean' || !feedback.feedback) {
+      throw new Error('Invalid feedback content format');
+    }
 
     this.addToSessionHistory({
       type: 'feedback',
-      content: feedback.simplifiedExplanation || '',
+      content: feedback.feedback,
       timestamp: new Date().toISOString()
     });
+
+    // Update learning state
+    if (feedback.isCorrect) {
+      this.learningState.progress.masteredConcepts.push(subtopic);
+    } else {
+      this.learningState.progress.needsReview.push(subtopic);
+    }
 
     return feedback;
   }
 
-  // Generates a summary of the learning session
-  async getSessionSummary(): Promise<SummarizerResponse> {
-    const sessionData = {
-      topic: this.learningState.currentTopic,
-      coveredSubtopics: this.learningState.progress.completedSubtopics,
-      userResponses: this.learningState.sessionHistory
-        .filter(h => h.type === 'quiz')
-        .map(h => h.content),
-      quizResults: this.learningState.sessionHistory
-        .filter(h => h.type === 'quiz')
-        .map(h => ({
-          questionId: h.content,
-          correct: h.outcome === 'correct'
-        }))
-    };
-
-    const summary = await this.callAgent(
-      SUMMARIZER_INSTRUCTIONS,
-      { sessionData }
-    ) as SummarizerResponse;
-
-    this.addToSessionHistory({
-      type: 'summary',
-      content: summary.summary,
-      timestamp: new Date().toISOString()
-    });
-
-    return summary;
-  }
-
-  // Creates memory aids for better concept retention
-  async getRetentionAids(concepts: string[]): Promise<RetentionResponse> {
-    const input: RetentionInput = {
-      concepts,
-      relationships: this.learningState.sessionHistory
-        .filter(h => h.type === 'explanation')
-        .map(h => h.content),
-      userProgress: concepts.reduce((acc, concept) => ({
-        ...acc,
-        [concept]: this.learningState.progress.masteredConcepts.includes(concept) ? 1 : 0
-      }), {})
+  // Gets session summary
+  async getSessionSummary(): Promise<SummaryConsolidationAgentOutput> {
+    const input: SummaryConsolidationAgentInput = {
+      latestContextSummary: this.learningState.sessionHistory
+        .map(h => h.content)
+        .join('\n'),
+      lastAgentInput: null,
+      lastAgentOutput: null
     };
 
     return await this.callAgent(
-      RETENTION_INSTRUCTIONS,
+      SUMMARY_CONSOLIDATION_AGENT_INSTRUCTIONS,
       input
-    ) as RetentionResponse;
-  }
-
-  // Checks content for safety concerns and provides resources if needed
-  async checkContentSafety(content: string, context?: string): Promise<SafetyAgentResponse> {
-    try {
-      const input: SafetyAgentInput = { content, context };
-      console.log('Safety Agent Input:', { content, context, inputObject: input });
-
-      const safetyCheck = await this.callAgent(
-        SAFETY_AGENT_INSTRUCTIONS,
-        input
-      ) as SafetyAgentResponse;
-
-      console.log('Safety Check Status:', safetyCheck.status);
-
-      if (safetyCheck.status === SafetyCheck.NEEDS_HELP) {
-        console.log('User IP:', this.userIp);
-        const resources = await getLocationBasedResources(this.userIp);
-        console.log('Location resources:', resources);
-        
-        // Create a supportive message with crisis resources
-        const supportMessage = this.createCrisisResourcesMessage(resources);
-
-        return {
-          status: SafetyCheck.NEEDS_HELP,
-          explanation: "Support resources available",
-          suggestedResources: [
-            ...resources.phone,
-            resources.website
-          ].filter((r): r is string => r !== undefined),
-          supportiveMessage: supportMessage
-        };
-      }
-
-      return safetyCheck;
-
-    }
-    
-    catch (error) {
-      console.log('Error in safety check. User IP:', this.userIp);
-      const resources = await getLocationBasedResources();
-      console.log('Fallback resources:', resources);
-      
-      return {
-        status: SafetyCheck.NEEDS_HELP,
-        explanation: "Support resources available",
-        suggestedResources: [
-          ...resources.phone,
-          resources.website
-        ].filter((r): r is string => r !== undefined),
-        supportiveMessage: this.createCrisisResourcesMessage(resources)
-      };
-    }
-  }
-
-  // Helper function to create crisis resources message
-  private createCrisisResourcesMessage(resources: any): string {
-    return `
-      <div class="crisis-resources">
-        <p>You're not alone. Help is available:</p>
-        <div class="resource-list">
-          ${resources.phone.map((p: string) => `
-            <div class="resource-item">
-              <span class="emoji">📞</span>
-              <a href="tel:${p.replace(/\D/g, '')}" class="resource-link">${p}</a>
-            </div>
-          `).join('')}
-          ${resources.website ? `
-            <div class="resource-item">
-              <span class="emoji">🌐</span>
-              <a href="${resources.website}" target="_blank" rel="noopener noreferrer" class="resource-link">${resources.website}</a>
-            </div>
-          ` : ''}
-        </div>
-        <style>
-          .crisis-resources {
-            margin: 1rem 0;
-            padding: 1rem;
-            border: 1px solid #e5e7eb;
-            border-radius: 0.5rem;
-            background-color: #f9fafb;
-          }
-          .resource-list {
-            margin-top: 0.5rem;
-          }
-          .resource-item {
-            margin: 0.5rem 0;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-          }
-          .emoji {
-            display: inline-block;
-            width: 1.5rem;
-          }
-          .resource-link {
-            color: #2563eb;
-            text-decoration: underline;
-          }
-          .resource-link:hover {
-            color: #1d4ed8;
-          }
-        </style>
-      </div>
-    `;
-  }
-
-  // Returns a copy of the current learning state
-  getLearningState(): LearningState {
-    return { ...this.learningState };
+    ) as SummaryConsolidationAgentOutput;
   }
 }
