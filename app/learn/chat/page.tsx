@@ -27,6 +27,17 @@ const Chat: React.FC = () => {
     scrollToBottom()
   }, [messages])
 
+  useEffect(() => {
+    const savedResponse = localStorage.getItem("chatResponse");
+    if (savedResponse) {
+      const parsedResponse = JSON.parse(savedResponse);
+      setMessages([
+        { id: Date.now(), content: JSON.stringify(parsedResponse, null, 2), sender: "ai" },
+      ]);
+      localStorage.removeItem("chatResponse");
+    }
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim()) {
