@@ -91,9 +91,11 @@ export default function Leaderboard() {
                 ease: [0.22, 1, 0.36, 1],
               }}
             >
-              <Button variant="outline" className="px-6 py-2 rounded-xl">
-                Back to Home
-              </Button>
+              <Link href="/">
+                <Button variant="outline" className="px-6 py-2 rounded-xl">
+                  Back to Home
+                </Button>
+              </Link>
             </motion.div>
           </div>
         </div>
