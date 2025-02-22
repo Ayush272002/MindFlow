@@ -1,38 +1,42 @@
 import os
 import json
-import requests  # Required for downloading files
+import requests
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PyPDFLoader
 import google.generativeai as genai
 
-# Initialize Flask app
+load_dotenv()
 app = Flask(__name__)
-CORS(app)  # Allow CORS for frontend interaction
+CORS(app)
 
-# Configure Gemini API
-genai.configure(api_key="YOUR_GEMINI_API_KEY")
+genai.configure(api_key=f"{os.environ.get("GEMINI_API_KEY")}")
+
+DOWNLOADS_DIR = "downloads/"
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+
 
 def download_file(file_url):
     """Download file from a URL and save it locally."""
-    local_filename = file_url.split("/")[-1]  # Extract filename from URL
-    local_path = os.path.join("downloads", local_filename)  # Save in 'downloads' folder
-
-    os.makedirs("downloads", exist_ok=True)  # Ensure folder exists
+    print(file_url)
+    print(file_url.split("/"))
+    local_filename = DOWNLOADS_DIR + file_url.split("/")[-2] + ".pdf"
 
     try:
         response = requests.get(file_url, stream=True)
-        response.raise_for_status()  # Raise error for bad status codes
+        response.raise_for_status()  # Handle HTTP errors
 
-        with open(local_path, "wb") as file:
+        with open(local_filename, "wb") as file:
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
 
-        return local_path  # Return path to downloaded file
+        return local_filename  # Return full file path
     except requests.exceptions.RequestException as e:
         print(f"Error downloading file: {e}")
-        return None
+        return None  # Handle download failures
+
 
 def extract_text_from_pdf(pdf_path):
     """Extract text from a PDF file."""
@@ -41,20 +45,28 @@ def extract_text_from_pdf(pdf_path):
     text = "\n".join([page.page_content for page in pages])
     return text
 
+
 def process_with_gemini(text):
     """Use Gemini API to generate interactive learning content."""
     model = genai.GenerativeModel("gemini-pro")
     prompt = f"Create an interactive learning module from this content:\n\n{text}"
-    response = model.generate_content(prompt)
-    return response.text
+    
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        print(f"Error processing with Gemini: {e}")
+        return None
+
 
 @app.route("/process-content", methods=["POST"])
 def process_content():
+    """Handle content processing from user notes or uploaded files."""
     data = request.json
     notes = data.get("notes", "")
     files = data.get("files", [])  # Expecting URLs of files
 
-    extracted_text = notes  # Start with notes
+    extracted_text = notes.strip()  # Start with user notes
     processed_results = []
 
     for file_url in files:
@@ -63,12 +75,14 @@ def process_content():
             text = extract_text_from_pdf(pdf_path)
             extracted_text += f"\n\n{text}"
 
-    if extracted_text.strip():
+    if extracted_text:
         learning_module = process_with_gemini(extracted_text)
-        processed_results.append({"module": learning_module})
+        if learning_module:
+            processed_results.append({"module": learning_module})
 
     print("Processed Data:", json.dumps(processed_results, indent=2))
     return jsonify({"status": "success", "data": processed_results})
+
 
 if __name__ == "__main__":
     app.run(debug=True)
