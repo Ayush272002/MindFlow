@@ -7,10 +7,12 @@ export interface ExplorationAgentInput extends BaseAgentInput {
 }
 
 export interface ExplorationAgentOutput {
-  subtopics: string[];
-  broaderTopic: string;
-  prerequisites: string[];
-  summary: string;
+  subtopics?: string[];
+  broaderTopic?: string;
+  prerequisites?: string[];
+  summary?: string;
+  status?: SafetyStatus;
+  explanation?: string;
 }
 
 export interface DeepDiveAgentInput extends BaseAgentInput {
