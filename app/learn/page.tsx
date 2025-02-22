@@ -172,6 +172,7 @@ export default function UploadModule() {
 
       const data = await response.json();
       console.log("Processed Data:", data);
+      localStorage.setItem("chatResponse", JSON.stringify(data));
 
       toast.success("Your content is being processed", {
         icon: <Sparkles className="w-4 h-4" />,
