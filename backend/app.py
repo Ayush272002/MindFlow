@@ -12,7 +12,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-genai.configure(api_key=f"{os.environ.get("GEMINI_API_KEY")}")
+genai.configure(api_key=f"{os.environ.get('GEMINI_API_KEY')}")
 
 DOWNLOADS_DIR = "downloads/"
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
