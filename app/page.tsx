@@ -39,7 +39,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#fafafa]">
       {/* Navbar */}
-      <Navbar loggedIn={true} />
+      <Navbar loggedIn={false} />
 
       {/* hero section */}
       <section className="container mx-auto px-4 py-32 flex flex-col items-center">
@@ -72,9 +72,11 @@ export default function Home() {
             className="flex gap-6 justify-center"
             variants={fadeInUp}
           >
-            <Button className="bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90 text-white px-12 py-8 text-xl rounded-2xl">
-              Start Now
-            </Button>
+            <Link href="/learn">
+              <Button className="bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90 text-white px-12 py-8 text-xl rounded-2xl">
+                Start Now
+              </Button>
+            </Link>
             <Link href="/leaderboard">
               <Button variant="outline" className="px-12 py-8 text-xl rounded-2xl border-2">
                 Leaderboard
@@ -225,9 +227,11 @@ export default function Home() {
               ease: [0.22, 1, 0.36, 1]
             }}
           >
-            <Button className="bg-white text-blue-600 hover:bg-blue-50 px-12 py-8 text-xl rounded-2xl font-semibold">
-              Get Started
-            </Button>
+            <Link href="/learn">
+              <Button className="bg-white text-blue-600 hover:bg-blue-50 px-12 py-8 text-xl rounded-2xl font-semibold">
+                Get Started
+              </Button>
+            </Link>
           </motion.div>
         </motion.div>
       </section>

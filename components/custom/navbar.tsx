@@ -35,12 +35,12 @@ export default function Navbar({ loggedIn }: NavbarProps) {
               ease: [0.22, 1, 0.36, 1],
             }}
           >
-            {loggedIn && (
+            {!loggedIn && (
               <Button variant="outline" className="px-6 py-2 rounded-xl">
                 Login
               </Button>
             )}
-            {!loggedIn && (
+            {loggedIn && (
               <Link href="/">
                 <Button variant="outline" className="px-6 py-2 rounded-xl">
                   Sign out
