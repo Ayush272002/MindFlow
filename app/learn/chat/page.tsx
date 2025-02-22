@@ -61,7 +61,14 @@ const Chat: React.FC = () => {
         <div className="flex flex-col h-full">
           <div className="flex-grow overflow-y-auto mb-4 space-y-4">
             {messages.map((message) => (
-              <div key={message.id} className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}>
+              <motion.div
+                key={message.id}
+                className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
+                initial={{ opacity: 0, y: 20, x: message.sender === "user" ? 20 : -20 }}
+                animate={{ opacity: 1, y: 0, x: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.2 } }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              >
                 <div
                   className={`max-w-[70%] p-4 rounded-xl ${
                     message.sender === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
@@ -69,7 +76,7 @@ const Chat: React.FC = () => {
                 >
                   {message.content}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
 
