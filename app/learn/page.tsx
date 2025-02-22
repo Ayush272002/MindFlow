@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import Navbar from "@/components/custom/navbar";
-import { useRouter } from "next/navigation";
+import { UploadClient } from "@uploadcare/upload-client";
+
+const client = new UploadClient({
+  publicKey: process.env.NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY!,
+});
 
 const fadeInUp = {
   initial: { opacity: 0, y: 15 },
@@ -35,12 +39,13 @@ const scaleIn = {
 };
 
 export default function UploadModule() {
-  const router = useRouter();
-
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [notes, setNotes] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<
+    { name: string; url: string }[]
+  >([]);
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -66,58 +71,27 @@ export default function UploadModule() {
     }
   };
 
-  const processWithGemini = async (content: string) => {
-    try {
-      const response = await fetch("/api/generate-module", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content }),
-      });
-
-      if (!response.ok) throw new Error("Failed to process content");
-
-      const data = await response.json();
-      return data.moduleId;
-    } catch (error) {
-      console.error("Error processing content:", error);
-      throw error;
-    }
-  };
-
   const handleFiles = async (files: File[]) => {
     setUploading(true);
     setProgress(0);
+    let uploadedData: { name: string; url: string }[] = [];
 
     for (const file of files) {
-      const validTypes = [
-        "application/pdf",
-        "video/mp4",
-        "application/vnd.ms-powerpoint",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      ];
-
-      if (!validTypes.includes(file.type)) {
-        toast.error("Please upload PDF, PPT, PPTX or MP4 files only");
-        setUploading(false);
-        return;
-      }
-
       try {
-        const content = await file.text();
+        const { cdnUrl } = await client.uploadFile(file);
+        uploadedData.push({ name: file.name, url: cdnUrl });
 
-        const moduleId = await processWithGemini(content);
-
-        toast.success(`${file.name} has been converted to a learning module`, {
+        toast.success(`${file.name} uploaded successfully`, {
           icon: <Sparkles className="w-4 h-4" />,
         });
-        router.push(`/module/${moduleId}`);
-      } catch (error) {
-        toast.error("There was an error processing your file");
+
+        console.log(cdnUrl);
+      } catch {
+        toast.error(`Failed to upload ${file.name}`);
       }
     }
 
+    setUploadedFiles((prev) => [...prev, ...uploadedData]);
     setUploading(false);
     setProgress(0);
   };
@@ -169,7 +143,7 @@ export default function UploadModule() {
   ];
 
   const handleSubmit = async () => {
-    if (!notes.trim()) {
+    if (!notes.trim() && uploadedFiles.length === 0) {
       toast.error("Please add some notes or upload content");
       return;
     }
@@ -178,15 +152,31 @@ export default function UploadModule() {
     setProgress(0);
 
     try {
-      const moduleId = await processWithGemini(notes);
+      const payload = {
+        notes: notes,
+        files: uploadedFiles.map((file) => file.url),
+      };
+
+      const response = await fetch("http://127.0.0.1:5000/process-content", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error("Failed to process content");
+
+      const data = await response.json();
+      console.log("Processed Data:", data);
 
       toast.success("Your content is being processed", {
         icon: <Sparkles className="w-4 h-4" />,
       });
 
       setNotes("");
-      router.push(`/module/${moduleId}`);
-    } catch {
+    } catch (error) {
+      console.error(error);
       toast.error("There was an error processing your content");
     }
 
@@ -309,6 +299,27 @@ export default function UploadModule() {
                     </label>
                   </Button>
                 </div>
+
+                {uploadedFiles.length > 0 && (
+                  <div className="mt-4 space-y-2 text-left">
+                    {uploadedFiles.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center gap-3 p-3 bg-gray-100 rounded-lg shadow-sm"
+                      >
+                        <FileText className="w-5 h-5 text-blue-600" />
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-700 hover:underline"
+                        >
+                          {file.name}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-6">
