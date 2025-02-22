@@ -43,6 +43,9 @@ export function Chat({ apiKey }: ChatProps) {
     e.preventDefault();
     if (!input.trim() || !agentService) return;
 
+    console.log('\n=== New Topic Submission ===');
+    console.log('User input:', input.trim());
+    
     const userInput = input.trim();
     setInput('');
     setError(null);
@@ -50,27 +53,40 @@ export function Chat({ apiKey }: ChatProps) {
     addMessage('user', userInput);
 
     try {
-      const exploration = await agentService.startNewTopic(userInput);
+      console.log('Starting new topic...');
+      const response = await agentService.startNewTopic(userInput);
       
-      // Simpler, more robust learning plan format
+      // Handle safety/moderation responses
+      if (response.status === SafetyStatus.INAPPROPRIATE || response.status === SafetyStatus.NEEDS_HELP) {
+        console.log('Safety check status:', response.status);
+        addMessage('assistant', response.explanation || 'I cannot help with that request.');
+        setCurrentResponse(null);
+        setSelectedSubtopic(null);
+        return;
+      }
+      
+      // Handle normal exploration response
+      console.log('Building learning plan...');
       const learningPlan = [
         `# ${userInput} Learning Plan`,
         '',
-        exploration.summary || 'Let\'s explore this topic.',
+        response.summary || 'Let\'s explore this topic.',
         '',
         '## Prerequisites',
-        ...(exploration.prerequisites || []).map(p => `- ${p}`),
-        exploration.prerequisites?.length ? '' : 'No prerequisites needed.',
+        ...(response.prerequisites || []).map(p => `- ${p}`),
+        response.prerequisites?.length ? '' : 'No prerequisites needed.',
         '',
         '## Available Topics',
-        ...(exploration.subtopics || []).map((topic, i) => `${i + 1}. ${topic}`),
+        ...(response.subtopics || []).map((topic, i) => `${i + 1}. ${topic}`),
         '',
         'Please choose a topic number to learn more about it.'
       ].join('\n');
 
-      addMessage('assistant', learningPlan, 'exploration', exploration.subtopics);
-      setCurrentResponse(exploration);
+      addMessage('assistant', learningPlan, 'exploration', response.subtopics);
+      setCurrentResponse(response);
       setSelectedSubtopic(null);
+      
+      console.log('Learning plan created with topics:', response.subtopics);
     } catch (err) {
       console.error('Error:', err);
       setError('An error occurred while processing your request. Please try again.');
@@ -82,15 +98,20 @@ export function Chat({ apiKey }: ChatProps) {
   const handleTopicSelection = async (topic: string) => {
     if (!agentService || !currentResponse) return;
 
+    console.log('\n=== Topic Selection ===');
+    console.log('Selected topic:', topic);
+    
     setIsLoading(true);
     setError(null);
     setSelectedSubtopic(topic);
     addMessage('user', `I'd like to learn about: ${topic}`);
 
     try {
+      console.log('Fetching explanation...');
       const explanation = await agentService.getExplanation(topic);
       addMessage('assistant', explanation.breakdown, 'explanation');
       
+      console.log('Generating quiz...');
       const quiz = await agentService.getQuizQuestion(topic);
       const formattedQuestion = `Based on what you learned about ${topic}, ${quiz.question}`;
       addMessage('assistant', formattedQuestion, 'quiz', quiz.type === 'MCQ' ? quiz.options : undefined);
@@ -105,11 +126,16 @@ export function Chat({ apiKey }: ChatProps) {
   const handleQuizAnswer = async (answer: string) => {
     if (!agentService || !selectedSubtopic) return;
 
+    console.log('\n=== Quiz Answer ===');
+    console.log('Selected answer:', answer);
+    console.log('Current subtopic:', selectedSubtopic);
+    
     setIsLoading(true);
     setError(null);
     addMessage('user', answer);
 
     try {
+      console.log('Getting feedback...');
       const feedback = await agentService.getFeedback(selectedSubtopic, answer);
       addMessage('assistant', feedback.feedback, 'feedback');
 
@@ -117,10 +143,18 @@ export function Chat({ apiKey }: ChatProps) {
         const currentIndex = currentResponse.subtopics.indexOf(selectedSubtopic);
         const nextTopic = currentResponse.subtopics[currentIndex + 1];
 
+        console.log('Feedback result:', feedback.isCorrect ? 'Correct' : 'Incorrect');
+        console.log('Next topic available:', nextTopic ? 'Yes' : 'No');
+
         if (nextTopic) {
-          const nextPrompt = `\nGreat job! Would you like to learn about "${nextTopic}" next?\n\n1. Yes, continue to next topic\n2. No, I'm done for now`;
-          addMessage('assistant', nextPrompt, 'exploration', ['1', '2']);
+          const nextPrompt = `Great job! Would you like to learn about "${nextTopic}" next?`;
+          const options = [
+            'Yes, continue to next topic',
+            'No, I\'m done for now'
+          ];
+          addMessage('assistant', nextPrompt, 'exploration', options);
         } else {
+          console.log('Getting session summary...');
           const summary = await agentService.getSessionSummary();
           addMessage('assistant', summary.updatedContextSummary, 'summary');
           setCurrentResponse(null);
@@ -136,30 +170,62 @@ export function Chat({ apiKey }: ChatProps) {
   };
 
   const handleUserInput = async (input: string) => {
-    if (!currentResponse) {
+    console.log('\n=== User Input ===');
+    console.log('Input:', input);
+    console.log('Current state:', {
+      hasCurrentResponse: !!currentResponse,
+      selectedSubtopic,
+      awaitingAnswer: currentResponse?.subtopics && selectedSubtopic
+    });
+
+    if (!currentResponse || !agentService) {
+      console.log('No current response, treating as new topic');
       handleSubmit({ preventDefault: () => {} } as React.FormEvent);
       return;
     }
 
-    if (currentResponse.subtopics) {
-      // Check if input is a number corresponding to a topic
-      const topicIndex = parseInt(input) - 1;
-      if (!isNaN(topicIndex) && topicIndex >= 0 && topicIndex < currentResponse.subtopics.length) {
-        handleTopicSelection(currentResponse.subtopics[topicIndex]);
+    // Handle "Yes/No" responses for continuing to next topic
+    if (input === 'Yes, continue to next topic' && currentResponse.subtopics && selectedSubtopic) {
+      console.log('User chose to continue to next topic');
+      const currentIndex = currentResponse.subtopics.indexOf(selectedSubtopic);
+      const nextTopic = currentResponse.subtopics[currentIndex + 1];
+      if (nextTopic) {
+        console.log('Moving to next topic:', nextTopic);
+        handleTopicSelection(nextTopic);
         return;
       }
+    }
+    
+    if (input === 'No, I\'m done for now') {
+      console.log('User chose to end session');
+      const summary = await agentService.getSessionSummary();
+      addMessage('assistant', summary.updatedContextSummary, 'summary');
+      setCurrentResponse(null);
+      setSelectedSubtopic(null);
+      return;
+    }
 
+    if (currentResponse.subtopics) {
       // Check if input matches a topic name
       const matchingTopic = currentResponse.subtopics.find(
         topic => topic.toLowerCase() === input.toLowerCase()
       );
       if (matchingTopic) {
+        console.log('Found matching topic:', matchingTopic);
         handleTopicSelection(matchingTopic);
+        return;
+      }
+
+      // Check if input is a number corresponding to a topic
+      const topicIndex = parseInt(input) - 1;
+      if (!isNaN(topicIndex) && topicIndex >= 0 && topicIndex < currentResponse.subtopics.length) {
+        console.log('Found topic by index:', currentResponse.subtopics[topicIndex]);
+        handleTopicSelection(currentResponse.subtopics[topicIndex]);
         return;
       }
     }
 
-    // If we get here, treat it as a new topic
+    console.log('No matching topic found, treating as new topic');
     handleSubmit({ preventDefault: () => {} } as React.FormEvent);
   };
 
