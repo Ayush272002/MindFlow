@@ -33,17 +33,6 @@ const scaleIn = {
   },
 };
 
-const shimmer = {
-  animate: {
-    backgroundPosition: ["200% 0", "-200% 0"],
-    transition: {
-      duration: 8,
-      ease: "linear",
-      repeat: Number.POSITIVE_INFINITY,
-    },
-  },
-};
-
 export default function UploadModule() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -97,7 +86,7 @@ export default function UploadModule() {
         toast.success(`${file.name} has been converted to a learning module`, {
           icon: <Sparkles className="w-4 h-4" />,
         });
-      } catch (error) {
+      } catch {
         toast.error("There was an error processing your file");
       }
     }
@@ -106,6 +95,7 @@ export default function UploadModule() {
     setProgress(0);
   };
 
+  // eslint-disable-next-line
   const simulateFileUpload = async (file: File) => {
     return new Promise((resolve) => {
       let progress = 0;
@@ -166,7 +156,7 @@ export default function UploadModule() {
         icon: <Sparkles className="w-4 h-4" />,
       });
       setNotes("");
-    } catch (error) {
+    } catch {
       toast.error("There was an error processing your content");
     }
 
