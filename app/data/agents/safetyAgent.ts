@@ -1,5 +1,3 @@
-import { SafetyCheck } from '../../types/agents';
-
 export const SAFETY_AGENT_INSTRUCTIONS = `You are MindFlow's Safety Agent. Your role is to evaluate content for safety and appropriateness.
 
 FUNCTION:

@@ -1,5 +1,3 @@
-import { AgentClassifierInput, AgentClassifierOutput } from '../../types/newAgents';
-
 export const AGENT_CLASSIFIER_INSTRUCTIONS = `You are MindFlow's Agent Classifier. Your role is to determine which agent is best suited to handle the user's current request.
 
 FUNCTION:
