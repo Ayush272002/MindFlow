@@ -19,6 +19,10 @@ import google.generativeai as genai
 import torch
 import io
 import os
+from langchain.vectorstores import FAISS
+from langchain_core.embeddings import Embeddings
+from typing import List
+from datetime import datetime
 
 
 pipeline = KPipeline(lang_code='a')
@@ -27,6 +31,44 @@ from agents import AgentService, SafetyStatus
 
 load_dotenv()
 app = Flask(__name__)
+
+class GeminiEmbeddings(Embeddings):
+    def __init__(self):
+        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+        self.model = genai.GenerativeModel('gemini-pro')
+        
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for a list of documents."""
+        embeddings = []
+        for text in texts:
+            # Use Gemini to create a numerical representation of the text
+            prompt = f"Convert this text into a numerical embedding representation (return only the numbers, comma-separated): {text}"
+            response = self.model.generate_content(prompt)
+            # Parse the response into a list of floats
+            try:
+                # Extract numbers from response
+                numbers = [float(num) for num in response.text.strip('[]').split(',')]
+                # Ensure consistent dimensionality (adjust as needed)
+                while len(numbers) < 512:  # Pad if necessary
+                    numbers.append(0.0)
+                embeddings.append(numbers[:512])  # Truncate to fixed size
+            except Exception as e:
+                print(f"Error creating embedding: {e}")
+                # Fallback to random embedding if parsing fails
+                embeddings.append(np.random.rand(512).tolist())
+        return embeddings
+
+    def embed_query(self, text: str) -> List[float]:
+        """Generate embedding for a single piece of text."""
+        return self.embed_documents([text])[0]
+
+# Global variables
+chat_history = []
+vector_store = None
+try:
+    embeddings = GeminiEmbeddings()
+except Exception as e:
+    print(f"Error initializing Gemini embeddings: {e}")
 
 # Configure CORS
 CORS(app, resources={
@@ -305,6 +347,104 @@ def transcribe():
     os.remove(temp_file)  # Clean up temporary file after processing
 
     return jsonify({"text": result["text"]})
+
+@app.route('/explain-more', methods=['POST'])
+def explain_more():
+    """Use Gemini to provide deeper explanations based on previous context"""
+    try:
+        data = request.json
+        question = data.get('question')
+        context = data.get('context', '')
+        
+        # Initialize vector store if not exists
+        global vector_store
+        if vector_store is None:
+            texts = split_text_for_rag(context)
+            vector_store = FAISS.from_texts(texts, embeddings)
+        
+        # Get most relevant context
+        relevant_docs = vector_store.similarity_search(question, k=2)
+        relevant_context = " ".join([doc.page_content for doc in relevant_docs])
+        
+        # Generate detailed explanation using Gemini
+        prompt = f"""Using the following context and question, provide a detailed explanation:
+        
+        Context: {relevant_context}
+        
+        Question: {question}
+        
+        Provide a thorough explanation that incorporates the context and addresses the question directly."""
+        
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+        
+        # Update chat history
+        chat_history.append({
+            "question": question,
+            "answer": response.text,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return jsonify({
+            'response': response.text,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        print(f"Error in explain-more: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+@app.route('/interactive-questions', methods=['POST'])
+def interactive_questions():
+    """Generate and process interactive questions using Gemini"""
+    try:
+        data = request.json
+        context = data.get('context', '')
+        
+        prompt = f"""Based on this content, generate 3 interactive questions to test understanding. 
+        Format your response as a JSON array of questions, where each question has:
+        - question_text: the actual question
+        - options: array of 4 possible answers
+        - correct_answer: the correct answer
+        - explanation: explanation of why this is correct
+        
+        Content: {context}"""
+        
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+        
+        # Try to parse the response as JSON
+        try:
+            questions = json.loads(response.text)
+        except json.JSONDecodeError:
+            # If JSON parsing fails, create a structured response manually
+            questions = [{
+                "question_text": "Could not generate proper questions.",
+                "options": ["Try again", "Contact support"],
+                "correct_answer": "Try again",
+                "explanation": "There was an error processing the content."
+            }]
+        
+        # Add to chat history
+        chat_history.append({
+            "type": "interactive_questions",
+            "questions": questions,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return jsonify({
+            'questions': questions,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        print(f"Error in interactive-questions: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
