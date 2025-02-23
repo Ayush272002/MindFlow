@@ -110,6 +110,21 @@ def process_interaction():
         current_topic = data.get('current_topic')
         active_subtopic = data.get('active_subtopic')
         session_history = data.get('session_history')
+
+        # Process the interaction through the agent service
+        response = agent_service.start_new_topic(user_input, current_topic=current_topic, active_subtopic=active_subtopic, session_history=session_history)
+
+        # Convert the response to a dictionary
+        response_dict = response.to_dict()
+
+        return jsonify(response_dict)
+
+    except Exception as e:
+        print(f"Error processing interaction: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
 def generate_audio(text):
     generator = pipeline(
         text, voice='af_heart', # <= change voice here
@@ -150,8 +165,6 @@ def process_text2speech():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
     audio = generate_audio(text)
 
     wav_file = io.BytesIO()
@@ -160,42 +173,98 @@ def process_text2speech():
     return send_file(wav_file, mimetype='audio/wav', as_attachment=False)
 
 
-        # Process the interaction through the agent service
-        response = agent_service.start_new_topic(user_input, current_topic=current_topic, active_subtopic=active_subtopic, session_history=session_history)
-
-        # Convert the response to a dictionary
-        response_dict = response.to_dict()
-
-        return jsonify(response_dict)
-
+def is_valid_pdf(file_url):
+    """Check if the file is a valid PDF."""
+    try:
+        # For Uploadcare URLs, we can trust the file extension
+        if 'ucarecdn.com' in file_url:
+            return True
+            
+        # For other URLs, check the content
+        response = requests.get(file_url, stream=True)
+        response.raise_for_status()
+        
+        # Check content type header first
+        content_type = response.headers.get('content-type', '').lower()
+        if 'application/pdf' in content_type:
+            return True
+            
+        # If no content type header, check magic numbers
+        magic_numbers = response.raw.read(4)
+        return magic_numbers.startswith(b'%PDF')
     except Exception as e:
-        print(f"Error processing interaction: {e}")
-        return jsonify({
-            'error': str(e)
-        }), 500
+        print(f"Error validating PDF: {e}")
+        return False
 
 @app.route('/process-content', methods=['POST'])
 def process_content():
     """Process uploaded content."""
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        print("Received data:", data)  # Debug log
+        
         notes = data.get('notes', '')
         files = data.get('files', [])
 
         # Process files if any
         processed_files = []
+        all_text = []
+        
+        # Add notes if provided
+        if notes.strip():
+            all_text.append(notes)
+
+        # Process each file
         for file_url in files:
+            print(f"Processing file URL: {file_url}")  # Debug log
+            
+            # Skip empty URLs
+            if not file_url:
+                continue
+                
+            # Validate PDF
+            if not is_valid_pdf(file_url):
+                print(f"Invalid PDF URL: {file_url}")  # Debug log
+                return jsonify({
+                    'error': f'Invalid or unsupported file format. Only PDF files are allowed.'
+                }), 400
+                
             local_file = download_file(file_url)
             if local_file:
                 processed_files.append(local_file)
+                try:
+                    text = extract_text_from_pdf(local_file)
+                    if text:
+                        all_text.append(text)
+                except Exception as e:
+                    print(f"Error extracting text from PDF: {e}")
+                    return jsonify({
+                        'error': 'Could not extract text from PDF. Please ensure it is a valid PDF file with extractable text.'
+                    }), 400
 
-        # TODO: Process the content and generate learning plan
-        # For now, return a mock response
-        response = [{
-            'learning_plan': f"Generated learning plan from {len(processed_files)} files and notes: {notes[:100]}..."
-        }]
+        # If no content was processed, return error
+        if not all_text:
+            return jsonify({
+                'error': 'No content could be processed'
+            }), 400
 
-        return jsonify(response)
+        # Combine all text and process with Gemini
+        combined_text = "\n\n".join(all_text)
+        processed_content = process_with_gemini(combined_text)
+
+        if not processed_content:
+            return jsonify({
+                'error': 'Failed to process content with AI'
+            }), 500
+
+        # Return the processed content
+        return jsonify({
+            'response': processed_content,
+            'status': 'success'
+        })
 
     except Exception as e:
         print(f"Error processing content: {e}")
