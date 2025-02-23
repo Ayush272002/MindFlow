@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MindFlow
 
-## Getting Started
+![public/mindflow.gif](public/mindflow.gif)
 
-First, run the development server:
+## Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+MindFlow is an **adaptive learning companion** that personalises education by tailoring content based on user feedback and performance. By leveraging **AI-driven content generation**, MindFlow transforms learning resources into **interactive modules**, making education more engaging and accessible.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+MindFlow supports multiple modalities—including **interactive quizzes**—to match individual learning styles. It dynamically adjusts **difficulty and presentation** in real time, ensuring users always learn at the right pace. Additionally, MindFlow prevents misinformation, enhances accessibility with **text-to-speech and speech-to-text**, and even aids in **decision-making** by providing contextual insights.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- 📂 **Upload & Convert Resources** – Users can upload PDFs, slides, and videos, which are then transformed into structured learning materials.
+- 🧠 **AI-Powered Concept Understanding** – Analyses documents and extracts key concepts to generate concise summaries, flashcards, and quizzes.
+- 🎯 **Adaptive Learning Paths** – Dynamically adjusts difficulty and presentation based on user performance and feedback.
+- ✍️ **Interactive Quizzes** – Reinforces learning with AI-generated quizzes and condensed study material.
+- 🔎 **Retrieval-Augmented Generation (RAG)** – Provides accurate, contextual information by pulling from verified sources.
+- 🎮 **Gamification Elements** – Keeps users engaged with achievements and progress tracking.
+- 🎙️ **Multimodal AI Accessibility** – Supports **text-to-speech, speech-to-text**, and multimodal interactions for enhanced accessibility.
+- 🤖 **Decision Support & Information Integrity** – Assists in research and analysis while mitigating misinformation.
 
-## Learn More
+## Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Frontend:** React, Next.js
+- **Backend:** Flask
+- **AI & NLP:** Custom RAG pipeline, OpenAI, in-house text-to-speech & speech-to-text
+- **Integrations:** LangChain, Hugging Face
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Demo Video
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+[![Watch the video](public/thumbnail.png)](https://youtu.be/Z9Cpl__wBtg)
 
-## Deploy on Vercel
+## What’s Next for MindFlow?
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+As we continue improving MindFlow, we aim to introduce even more **intelligent features and enhancements**, including:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 🌍 **Multilingual Support** – Expanding accessibility for a global audience.
+- 🤝 **Collaborative Learning Features** – Enabling group study sessions and shared learning experiences.
+- 🎨 **Customisable Learning Environments** – Allowing users to tailor UI themes and interaction modes.
+- 🕵️ **Advanced Research Tools** – Enhancing document analysis with deeper contextual insights.
+- 📊 **Analytics & Learning Insights** – Providing in-depth progress tracking and performance analytics.
