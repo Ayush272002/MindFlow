@@ -110,6 +110,21 @@ def process_interaction():
         current_topic = data.get('current_topic')
         active_subtopic = data.get('active_subtopic')
         session_history = data.get('session_history')
+
+        # Process the interaction through the agent service
+        response = agent_service.start_new_topic(user_input, current_topic=current_topic, active_subtopic=active_subtopic, session_history=session_history)
+
+        # Convert the response to a dictionary
+        response_dict = response.to_dict()
+
+        return jsonify(response_dict)
+
+    except Exception as e:
+        print(f"Error processing interaction: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
 def generate_audio(text):
     generator = pipeline(
         text, voice='af_heart', # <= change voice here
@@ -150,8 +165,6 @@ def process_text2speech():
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
-    if not text:
-        return jsonify({"error": "No text provided"}), 400
     audio = generate_audio(text)
 
     wav_file = io.BytesIO()
@@ -159,20 +172,6 @@ def process_text2speech():
     wav_file.seek(0)
     return send_file(wav_file, mimetype='audio/wav', as_attachment=False)
 
-
-        # Process the interaction through the agent service
-        response = agent_service.start_new_topic(user_input, current_topic=current_topic, active_subtopic=active_subtopic, session_history=session_history)
-
-        # Convert the response to a dictionary
-        response_dict = response.to_dict()
-
-        return jsonify(response_dict)
-
-    except Exception as e:
-        print(f"Error processing interaction: {e}")
-        return jsonify({
-            'error': str(e)
-        }), 500
 
 @app.route('/process-content', methods=['POST'])
 def process_content():
@@ -184,18 +183,41 @@ def process_content():
 
         # Process files if any
         processed_files = []
+        all_text = []
+        
+        # Add notes if provided
+        if notes.strip():
+            all_text.append(notes)
+
+        # Process each file
         for file_url in files:
             local_file = download_file(file_url)
             if local_file:
                 processed_files.append(local_file)
+                text = extract_text_from_pdf(local_file)
+                if text:
+                    all_text.append(text)
 
-        # TODO: Process the content and generate learning plan
-        # For now, return a mock response
-        response = [{
-            'learning_plan': f"Generated learning plan from {len(processed_files)} files and notes: {notes[:100]}..."
-        }]
+        # If no content was processed, return error
+        if not all_text:
+            return jsonify({
+                'error': 'No content could be processed'
+            }), 400
 
-        return jsonify(response)
+        # Combine all text and process with Gemini
+        combined_text = "\n\n".join(all_text)
+        processed_content = process_with_gemini(combined_text)
+
+        if not processed_content:
+            return jsonify({
+                'error': 'Failed to process content with AI'
+            }), 500
+
+        # Return the processed content
+        return jsonify({
+            'response': processed_content,
+            'status': 'success'
+        })
 
     except Exception as e:
         print(f"Error processing content: {e}")
