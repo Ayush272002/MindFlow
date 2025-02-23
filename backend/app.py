@@ -53,7 +53,7 @@ def process_with_gemini(text):
     """Sends text to Gemini AI to create a learning module"""
     # TODO: Integrate with a new agent that handles RAG and
     model = genai.GenerativeModel("gemini-pro")
-    prompt = f"Create an interactive learning module from this content:\n\n{text}"
+    prompt = f"Create an interactive learning module from this content. Use LaTeX for mathematical expressions and wrap them in single or double dollar signs if required. Use markdown for other content:\n\n{text}"
     
     try:
         response = model.generate_content(prompt)
