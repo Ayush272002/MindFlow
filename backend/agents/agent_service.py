@@ -3,7 +3,6 @@
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-
 import google.generativeai as genai
 
 from .agent_types import (
@@ -118,16 +117,12 @@ class AgentService:
             print('Raw response:', response)
 
             try:
-                # Clean the response text to ensure it's valid JSON
-                # Remove any markdown formatting or text outside of JSON
                 json_start = response.find('{')
                 json_end = response.rfind('}') + 1
                 if json_start >= 0 and json_end > json_start:
                     clean_response = response[json_start:json_end]
                     parsed_response = json.loads(clean_response, strict=False)
                 else:
-                    # If no JSON found, try to extract useful information
-                    # and format it as a response
                     return {
                         'status': SafetyStatus.SAFE,
                         'explanation': response.strip(),
@@ -135,10 +130,8 @@ class AgentService:
                         'prerequisites': [],
                         'summary': ''
                     }
-                
-                # Only check for safety phrases in non-safety agent responses
+
                 if not isinstance(input_data, SafetyAgentInput):
-                    # Check for safety-related phrases in the response content
                     response_text = json.dumps(parsed_response, ensure_ascii=False).lower()
                     moderation_phrases = [
                         'cannot help',
@@ -162,7 +155,6 @@ class AgentService:
 
             except json.JSONDecodeError as e:
                 print(f'Error parsing JSON response: {e}')
-                # Return a formatted response even if JSON parsing fails
                 return {
                     'status': SafetyStatus.SAFE,
                     'explanation': response.strip(),
@@ -210,7 +202,6 @@ class AgentService:
         self.learning_state.active_subtopic = active_subtopic if active_subtopic != None else topic
         self.learning_state.session_history = session_history if session_history != None else []
 
-        # Run safety check first
         safety_check = self.run_safety_check(topic)
         if safety_check.status != SafetyStatus.SAFE:
             return ExplorationAgentOutput(
@@ -221,7 +212,6 @@ class AgentService:
                 summary=safety_check.explanation
             )
 
-        # Use agent classifier
         classifier_input = AgentClassifierInput(
             user_input=topic,
             available_agents=[
@@ -242,11 +232,9 @@ class AgentService:
 
         classification = handle_classification(self.model, classifier_input, self._call_agent)
 
-        # Handle based on classification
         if self.learning_state.awaiting_answer and self.learning_state.last_question:
             return self._handle_answer_evaluation(topic)
         
-        # Create input data for the selected agent
         context_summary = '\n'.join(
             entry['content'] for entry in self.learning_state.session_history
         )
@@ -367,7 +355,6 @@ class AgentService:
                 )
 
             case _:
-                # Default to exploration for unknown agents
                 input_data = ExplorationAgentInput(
                     user_prompt=topic,
                     latest_context_summary=context_summary

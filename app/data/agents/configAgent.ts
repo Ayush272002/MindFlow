@@ -1,5 +1,3 @@
-import { ConfigAgentInput, ConfigAgentOutput } from '../../types/newAgents';
-
 export const CONFIG_AGENT_INSTRUCTIONS = `You are MindFlow's Configuration Agent. Your role is to process user configuration requests and generate appropriate prompt additions.
 
 FUNCTION:

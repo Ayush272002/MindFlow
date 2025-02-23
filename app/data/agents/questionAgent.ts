@@ -1,5 +1,3 @@
-import { QuestionAgentInput, QuestionAgentOutput, QuestionType } from '../../types/newAgents';
-
 export const QUESTION_AGENT_INSTRUCTIONS = `You are MindFlow's Question Agent. Your role is to generate appropriate questions to test user understanding.
 
 FUNCTION:

@@ -15,14 +15,12 @@ def handle_safety(
         SAFETY_AGENT_INSTRUCTIONS,
         input_data
     )
-    
-    # Parse the safety status
+
     try:
         status = SafetyStatus(result.get('status', 'SAFE').upper())
     except ValueError:
         status = SafetyStatus.SAFE
-    
-    # Ensure the response matches expected format
+
     return SafetyAgentOutput(
         status=status,
         explanation=result.get('explanation', 'Content appears to be safe and appropriate.')

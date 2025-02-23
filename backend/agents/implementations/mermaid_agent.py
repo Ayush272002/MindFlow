@@ -16,7 +16,6 @@ def handle_mermaid(
         input_data
     )
     
-    # Ensure the response matches expected format
     return MermaidAgentOutput(
         mermaid_code=result.get('mermaid_code', 'graph TD\nA[Topic] --> B[Subtopic]')
     ) 
