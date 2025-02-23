@@ -38,6 +38,7 @@ const Chat: React.FC = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
 
   // refs for DOM manipulation and audio handling
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -203,6 +204,7 @@ const Chat: React.FC = () => {
     }
 
     try {
+      setIsProcessingAudio(true);
       const formData = new FormData();
       formData.append("text", text);
 
@@ -229,6 +231,8 @@ const Chat: React.FC = () => {
     } catch (error) {
       console.error("Error generating speech:", error);
       setIsSpeaking(false);
+    } finally {
+      setIsProcessingAudio(false);
     }
   };
 
@@ -358,21 +362,19 @@ const Chat: React.FC = () => {
         <div className="flex flex-col h-full">
           <div
             ref={containerRef}
-            className="messages-container flex-grow overflow-y-auto mb-4 space-y-4 pb-[160px]"
+            className="messages-container flex-grow overflow-y-auto mb-4 space-y-6 pb-[160px] max-w-4xl mx-auto"
           >
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
-                  className={`flex ${
-                    message.sender === "user" ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex justify-center`}
                   initial={{
                     opacity: 0,
                     y: 20,
-                    x: message.sender === "user" ? 20 : -20,
+                    scale: 0.95
                   }}
-                  animate={{ opacity: 1, y: 0, x: 0 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{
                     opacity: 0,
                     scale: 0.95,
@@ -382,11 +384,11 @@ const Chat: React.FC = () => {
                   layout
                 >
                   <div
-                    className={`max-w-[70%] p-4 rounded-xl ${
+                    className={`w-[85%] p-6 rounded-2xl ${
                       message.sender === "user"
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-900"
-                    }`}
+                        ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
+                        : "bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900"
+                    } shadow-sm`}
                   >
                     {message.sender === "ai" ? (
                       <>
@@ -440,9 +442,14 @@ const Chat: React.FC = () => {
                             size="sm"
                             className="text-xs"
                             onClick={() => toggleSpeech(message.content)}
+                            disabled={isProcessingAudio}
                           >
-                            <Speaker className="h-4 w-4 mr-1" />
-                            {isSpeaking ? "Stop" : "Listen"}
+                            {isProcessingAudio ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Speaker className="h-4 w-4 mr-1" />
+                            )}
+                            {isSpeaking ? "Stop" : isProcessingAudio ? "Processing..." : "Listen"}
                           </Button>
                         </div>
                       </>
