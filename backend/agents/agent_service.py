@@ -85,10 +85,10 @@ class AgentService:
         self.learning_state.awaiting_answer = False
         answer_eval_input = AnswerEvalAgentInput("", self.learning_state.active_subtopic, self.learning_state.current_topic, self.learning_state.last_question, topic)
         answer_eval = handle_answer_eval(self.model, answer_eval_input, self._call_agent)
-        return {
-            "is_correct": answer_eval.is_correct,
-            "feedback": answer_eval.feedback            
-        }
+        return AnswerEvalAgentOutput(
+            is_correct=answer_eval.is_correct,
+            feedback=answer_eval.feedback
+        )
 
     def _call_agent(self, instructions: str, input_data: Any) -> Any:
         """Handle communication with the AI model."""
