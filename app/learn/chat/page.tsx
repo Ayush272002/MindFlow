@@ -58,8 +58,10 @@ const Chat: React.FC = () => {
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
       const parsedResponse = JSON.parse(savedResponse);
-      const moduleContent =
-        parsedResponse.data[0]?.module || "No content available";
+      const moduleContent = parsedResponse.explanation || 
+                          parsedResponse.response || 
+                          parsedResponse.summary || 
+                          "No content available";
       setMessages([{ id: Date.now(), content: moduleContent, sender: "ai" }]);
       localStorage.removeItem("chatResponse");
     }
@@ -88,7 +90,11 @@ const Chat: React.FC = () => {
         files: []  // Future enhancement: add file upload support
       });
 
-      const aiContent = response.data.data[0]?.module || "Sorry, I couldn't generate a response";
+      const aiContent = response.data.explanation || 
+                       response.data.response || 
+                       response.data.summary || 
+                       response.data.learning_plan ||
+                       "Sorry, I couldn't generate a response";
       
       const aiMessage: Message = {
         id: Date.now() + 1,
