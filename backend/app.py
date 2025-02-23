@@ -7,6 +7,8 @@ from flask_cors import CORS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import google.generativeai as genai
+import torch
+import os
 
 load_dotenv()
 app = Flask(__name__)
@@ -80,6 +82,32 @@ def process_content():
     print("Processed Data:", json.dumps(processed_results, indent=2))
     return jsonify({"status": "success", "data": processed_results})
 
+# Load Whisper Model
+model_path = os.path.join(app.root_path, 'model/whisper_model.pt')
+model = torch.load(model_path, weights_only = False)
+
+@app.route('/speech2text', methods=['POST'])
+def transcribe():
+    file_path = "temp_audio.wav"
+
+    if 'file' in request.files:
+        # If the request contains a file upload (regular file selection)
+        file = request.files['file']
+        file.save(file_path)
+    
+    elif request.data:
+        # If the request contains raw binary audio data (recorded audio)
+        with open(file_path, "wb") as f:
+            f.write(request.data)
+
+    else:
+        return jsonify({"error": "No audio data received"}), 400
+
+    # Perform transcription
+    result = model.transcribe(file_path)
+    os.remove(file_path)  # Clean up after processing
+
+    return jsonify({"text": result["text"]})
 
 if __name__ == "__main__":
     app.run(debug=True)
