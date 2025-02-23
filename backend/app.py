@@ -19,19 +19,53 @@ import google.generativeai as genai
 import torch
 import io
 import os
-
+from langchain.vectorstores import FAISS
+from langchain_core.embeddings import Embeddings
+from typing import List
+from datetime import datetime
+from agents import AgentService, SafetyStatus
 
 pipeline = KPipeline(lang_code='a')
 
-from agents import AgentService, SafetyStatus
 
 load_dotenv()
 app = Flask(__name__)
 
-# Configure CORS
+class GeminiEmbeddings(Embeddings):
+    def __init__(self):
+        genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+        self.model = genai.GenerativeModel('gemini-pro')
+        
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for a list of documents."""
+        embeddings = []
+        for text in texts:
+            prompt = f"Convert this text into a numerical embedding representation (return only the numbers, comma-separated): {text}"
+            response = self.model.generate_content(prompt)
+            try:
+                numbers = [float(num) for num in response.text.strip('[]').split(',')]
+                while len(numbers) < 512:  
+                    numbers.append(0.0)
+                embeddings.append(numbers[:512]) 
+            except Exception as e:
+                print(f"Error creating embedding: {e}")
+                embeddings.append(np.random.rand(512).tolist())
+        return embeddings
+
+    def embed_query(self, text: str) -> List[float]:
+        """Generate embedding for a single piece of text."""
+        return self.embed_documents([text])[0]
+
+chat_history = []
+vector_store = None
+try:
+    embeddings = GeminiEmbeddings()
+except Exception as e:
+    print(f"Error initializing Gemini embeddings: {e}")
+
 CORS(app, resources={
     r"/*": {
-        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],  # Frontend URLs
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"], 
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True,
@@ -39,10 +73,8 @@ CORS(app, resources={
     }
 })
 
-# Initialize the agent service
 agent_service = AgentService(api_key=os.environ.get('GEMINI_API_KEY'))
 
-# Set up downloads directory for storing PDFs
 DOWNLOADS_DIR = "downloads/"
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
@@ -111,10 +143,8 @@ def process_interaction():
         active_subtopic = data.get('active_subtopic')
         session_history = data.get('session_history')
 
-        # Process the interaction through the agent service
         response = agent_service.start_new_topic(user_input, current_topic=current_topic, active_subtopic=active_subtopic, session_history=session_history)
 
-        # Convert the response to a dictionary
         response_dict = response.to_dict()
 
         return jsonify(response_dict)
@@ -176,20 +206,16 @@ def process_text2speech():
 def is_valid_pdf(file_url):
     """Check if the file is a valid PDF."""
     try:
-        # For Uploadcare URLs, we can trust the file extension
         if 'ucarecdn.com' in file_url:
             return True
             
-        # For other URLs, check the content
         response = requests.get(file_url, stream=True)
         response.raise_for_status()
-        
-        # Check content type header first
+
         content_type = response.headers.get('content-type', '').lower()
         if 'application/pdf' in content_type:
             return True
-            
-        # If no content type header, check magic numbers
+
         magic_numbers = response.raw.read(4)
         return magic_numbers.startswith(b'%PDF')
     except Exception as e:
@@ -204,30 +230,25 @@ def process_content():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
             
-        print("Received data:", data)  # Debug log
+        print("Received data:", data)  
         
         notes = data.get('notes', '')
         files = data.get('files', [])
 
-        # Process files if any
         processed_files = []
         all_text = []
-        
-        # Add notes if provided
+
         if notes.strip():
             all_text.append(notes)
 
-        # Process each file
         for file_url in files:
-            print(f"Processing file URL: {file_url}")  # Debug log
-            
-            # Skip empty URLs
+            print(f"Processing file URL: {file_url}")  
+
             if not file_url:
                 continue
-                
-            # Validate PDF
+
             if not is_valid_pdf(file_url):
-                print(f"Invalid PDF URL: {file_url}")  # Debug log
+                print(f"Invalid PDF URL: {file_url}")  
                 return jsonify({
                     'error': f'Invalid or unsupported file format. Only PDF files are allowed.'
                 }), 400
@@ -245,13 +266,11 @@ def process_content():
                         'error': 'Could not extract text from PDF. Please ensure it is a valid PDF file with extractable text.'
                     }), 400
 
-        # If no content was processed, return error
         if not all_text:
             return jsonify({
                 'error': 'No content could be processed'
             }), 400
 
-        # Combine all text and process with Gemini
         combined_text = "\n\n".join(all_text)
         processed_content = process_with_gemini(combined_text)
 
@@ -260,7 +279,6 @@ def process_content():
                 'error': 'Failed to process content with AI'
             }), 500
 
-        # Return the processed content
         return jsonify({
             'response': processed_content,
             'status': 'success'
@@ -277,34 +295,121 @@ def get_summary():
     """Get a summary of the current learning session."""
     summary = agent_service.get_session_summary()
     return jsonify(summary.to_dict())
-# Load Whisper Model
-# TODO: Add error handling for model loading
+
 model_path = os.path.join(app.root_path, 'model/whisper_model.pt')
-model = torch.load(model_path, weights_only=False)  # Load speech recognition model
+model = torch.load(model_path, weights_only=False)  
 
 @app.route('/speech2text', methods=['POST'])
 def transcribe():
     """Converts speech audio to text using Whisper model"""
     temp_file = "temp_audio.wav"
 
-    # Handle both file upload and direct audio recording
     if 'file' in request.files:
         file = request.files['file']
         file.save(temp_file)
 
     elif request.data:
-        # If the request contains raw binary audio data (recorded audio)
         with open(temp_file, "wb") as f:
             f.write(request.data)
 
     else:
         return jsonify({"error": "No audio data received"}), 400
 
-    # Convert speech to text
     result = model.transcribe(temp_file)
-    os.remove(temp_file)  # Clean up temporary file after processing
+    os.remove(temp_file)  
 
     return jsonify({"text": result["text"]})
+
+@app.route('/explain-more', methods=['POST'])
+def explain_more():
+    """Use Gemini to provide deeper explanations based on previous context"""
+    try:
+        data = request.json
+        question = data.get('question')
+        context = data.get('context', '')
+
+        global vector_store
+        if vector_store is None:
+            texts = split_text_for_rag(context)
+            vector_store = FAISS.from_texts(texts, embeddings)
+        
+        relevant_docs = vector_store.similarity_search(question, k=2)
+        relevant_context = " ".join([doc.page_content for doc in relevant_docs])
+        
+        prompt = f"""Using the following context and question, provide a detailed explanation:
+        
+        Context: {relevant_context}
+        
+        Question: {question}
+        
+        Provide a thorough explanation that incorporates the context and addresses the question directly."""
+        
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+        
+        chat_history.append({
+            "question": question,
+            "answer": response.text,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return jsonify({
+            'response': response.text,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        print(f"Error in explain-more: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+@app.route('/interactive-questions', methods=['POST'])
+def interactive_questions():
+    """Generate and process interactive questions using Gemini"""
+    try:
+        data = request.json
+        context = data.get('context', '')
+        
+        prompt = f"""Based on this content, generate 3 interactive questions to test understanding. 
+        Format your response as a JSON array of questions, where each question has:
+        - question_text: the actual question
+        - options: array of 4 possible answers
+        - correct_answer: the correct answer
+        - explanation: explanation of why this is correct
+        
+        Content: {context}"""
+        
+        model = genai.GenerativeModel('gemini-pro')
+        response = model.generate_content(prompt)
+
+        try:
+            questions = json.loads(response.text)
+        except json.JSONDecodeError:
+            questions = [{
+                "question_text": "Could not generate proper questions.",
+                "options": ["Try again", "Contact support"],
+                "correct_answer": "Try again",
+                "explanation": "There was an error processing the content."
+            }]
+        
+        chat_history.append({
+            "type": "interactive_questions",
+            "questions": questions,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return jsonify({
+            'questions': questions,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        print(f"Error in interactive-questions: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
