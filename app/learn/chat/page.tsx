@@ -9,6 +9,7 @@ import { MicrophoneIcon, PaperAirplaneIcon, StopIcon } from "@heroicons/react/24
 import { Loader2 } from "lucide-react"
 import Navbar from "@/components/custom/navbar"
 import axios from "axios"
+import ReactMarkdown from 'react-markdown'
 
 interface Message {
   id: number
@@ -23,23 +24,32 @@ const Chat: React.FC = () => {
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunks = useRef<Blob[]>([])
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [])
+    if (containerRef.current) {
+      setTimeout(() => {
+        containerRef.current?.scrollTo({
+          top: containerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }, 100);
+    }
+  }, []);
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   useEffect(() => {
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
       const parsedResponse = JSON.parse(savedResponse);
+      const moduleContent = parsedResponse.data[0]?.module || "No content available";
       setMessages([
-        { id: Date.now(), content: JSON.stringify(parsedResponse, null, 2), sender: "ai" },
+        { id: Date.now(), content: moduleContent, sender: "ai" },
       ]);
       localStorage.removeItem("chatResponse");
     }
@@ -57,15 +67,30 @@ const Chat: React.FC = () => {
       setInput("")
       setIsLoading(true)
       
-      // Simulate AI response
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Get response from backend
+        const response = await axios.post('http://127.0.0.1:5000/process-content', {
+          notes: input,
+          files: [] // Add file handling if needed
+        });
+
+        // Extract just the module content from the response
+        const moduleContent = response.data.data[0]?.module || "No response generated";
+        
         const aiResponse: Message = {
           id: Date.now() + 1,
-          content: "This is a sample response with LaTeX: $E = mc^2$",
+          content: moduleContent,
           sender: "ai",
         }
         setMessages((prevMessages) => [...prevMessages, aiResponse])
+      } catch (error) {
+        console.error('Error:', error);
+        const errorMessage: Message = {
+          id: Date.now() + 1,
+          content: "Sorry, there was an error processing your request.",
+          sender: "ai",
+        }
+        setMessages((prevMessages) => [...prevMessages, errorMessage])
       } finally {
         setIsLoading(false)
       }
@@ -133,7 +158,7 @@ const Chat: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <div className="flex flex-col h-full">
-          <div className="flex-grow overflow-y-auto mb-4 space-y-4">
+          <div ref={containerRef} className="messages-container flex-grow overflow-y-auto mb-4 space-y-4 pb-[160px]">
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
                 <motion.div
@@ -150,12 +175,23 @@ const Chat: React.FC = () => {
                       message.sender === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
                     }`}
                   >
-                    {message.content}
+                    {message.sender === "ai" ? (
+                      <ReactMarkdown
+                        components={{
+                          p: ({node, ...props}) => <p className="prose prose-sm max-w-none dark:prose-invert" {...props} />
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    ) : (
+                      message.content
+                    )}
                   </div>
                 </motion.div>
               ))}
               {isLoading && (
                 <motion.div
+                  key="loading"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
@@ -170,71 +206,79 @@ const Chat: React.FC = () => {
                   </div>
                 </motion.div>
               )}
+              <div key="scroll-anchor" ref={messagesEndRef} className="h-0" />
             </AnimatePresence>
           </div>
 
-          <form onSubmit={handleSubmit} className="relative flex items-end">
-            <div className="relative flex-1">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your message here..."
-                className="min-h-[100px] pr-24 rounded-xl resize-none bg-gray-50 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
-              />
-              <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                <div className="relative">
-                  <Button
-                    type="button"
-                    onClick={recording ? stopRecording : startRecording}
-                    disabled={isTranscribing}
-                    variant="ghost"
-                    size="icon"
-                    className={`h-9 w-9 rounded-lg transition-colors ${
-                      recording 
-                        ? "text-red-500 bg-red-50 hover:bg-red-100" 
-                        : "text-blue-600 hover:bg-blue-50"
-                    }`}
-                  >
-                    {recording ? (
-                      <StopIcon className="h-5 w-5" />
-                    ) : isTranscribing ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      <MicrophoneIcon className="h-5 w-5" />
-                    )}
-                  </Button>
-                  {isTranscribing && (
-                    <motion.div
-                      className="absolute inset-0 rounded-lg border-2 border-blue-600"
-                      initial={{ scale: 1 }}
-                      animate={{
-                        scale: [1, 1.15, 1],
-                        opacity: [1, 0.5, 1],
-                      }}
-                      transition={{
-                        duration: 1.5,
-                        repeat: Infinity,
-                        ease: "easeInOut",
-                      }}
-                    />
-                  )}
+          <form onSubmit={handleSubmit} className="fixed bottom-0 left-0 right-0 p-6">
+            <div className="max-w-[1200px] mx-auto relative">
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg -z-10" />
+              <div className="relative flex items-end">
+                <div className="relative flex-1">
+                  <Textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSubmit(e);
+                      }
+                    }}
+                    placeholder="Type your message here..."
+                    className="min-h-[100px] p-4 pr-24 rounded-xl resize-none bg-transparent border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                    <div className="relative">
+                      <Button
+                        type="button"
+                        onClick={recording ? stopRecording : startRecording}
+                        disabled={isTranscribing}
+                        variant="ghost"
+                        size="icon"
+                        className={`h-9 w-9 rounded-lg transition-colors ${
+                          recording 
+                            ? "text-red-500 bg-red-50 hover:bg-red-100" 
+                            : "text-blue-600 hover:bg-blue-50"
+                        }`}
+                      >
+                        {recording ? (
+                          <StopIcon className="h-5 w-5" />
+                        ) : isTranscribing ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <MicrophoneIcon className="h-5 w-5" />
+                        )}
+                      </Button>
+                      {isTranscribing && (
+                        <motion.div
+                          className="absolute inset-0 rounded-lg border border-blue-400/50"
+                          animate={{ opacity: [0.5, 1] }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            repeatType: "reverse",
+                            ease: "easeInOut",
+                          }}
+                        />
+                      )}
+                    </div>
+                    <Button
+                      type="submit"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!input.trim() || isLoading}
+                      className={`h-9 w-9 rounded-lg transition-colors ${
+                        input.trim() 
+                          ? "text-blue-600 hover:bg-blue-50" 
+                          : "text-gray-400"
+                      }`}
+                    >
+                      <PaperAirplaneIcon className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  size="icon"
-                  disabled={!input.trim() || isLoading}
-                  className={`h-9 w-9 rounded-lg transition-colors ${
-                    input.trim() 
-                      ? "text-blue-600 hover:bg-blue-50" 
-                      : "text-gray-400"
-                  }`}
-                >
-                  <PaperAirplaneIcon className="h-5 w-5" />
-                </Button>
               </div>
             </div>
-            <div ref={messagesEndRef} />
           </form>
         </div>
       </motion.div>
