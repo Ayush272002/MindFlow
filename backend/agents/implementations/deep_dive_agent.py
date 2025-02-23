@@ -16,7 +16,6 @@ def handle_deep_dive(
         input_data
     )
     
-    # Ensure the response matches expected format
     return DeepDiveAgentOutput(
         breakdown=result.get('breakdown', 'Let me explain this concept in detail.'),
         mermaid_diagram=result.get('mermaid_diagram', ''),

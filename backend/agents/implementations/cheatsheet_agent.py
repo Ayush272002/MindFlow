@@ -16,7 +16,6 @@ def handle_cheatsheet(
         input_data
     )
     
-    # Ensure the response matches expected format
     return CheatsheetAgentOutput(
         content=result.get('content', 'Quick Reference Guide:\n- Key points will be listed here')
     ) 

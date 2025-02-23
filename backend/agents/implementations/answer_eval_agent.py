@@ -16,7 +16,6 @@ def handle_answer_eval(
         input_data
     )
     
-    # Ensure the response matches expected format
     return AnswerEvalAgentOutput(
         is_correct=result.get('is_correct', False),
         feedback=result.get('feedback', 'Let me help you understand this better.')

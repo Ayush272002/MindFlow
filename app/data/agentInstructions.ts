@@ -1,12 +1,3 @@
-import type { 
-  TopicMapperResponse, 
-  QuizQuestion, 
-  ExplainerResponse, 
-  FeedbackResponse, 
-  RetentionResponse,
-  LearningState
-} from '../types/agents';
-
 export const TOPIC_MAPPER_INSTRUCTIONS = `You are MindFlow's Topic Mapper Agent. Your role is to analyze learning topics and create structured learning paths.
 
 FUNCTION:

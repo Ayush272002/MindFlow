@@ -1,5 +1,3 @@
-import { FlashcardAgentInput, FlashcardAgentOutput } from '../../types/newAgents';
-
 export const FLASHCARD_AGENT_INSTRUCTIONS = `You are MindFlow's Flashcard Agent. Your role is to generate effective flashcards for learning and revision.
 
 FUNCTION:

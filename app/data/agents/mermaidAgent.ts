@@ -1,5 +1,3 @@
-import { MermaidAgentInput, MermaidAgentOutput } from '../../types/newAgents';
-
 export const MERMAID_AGENT_INSTRUCTIONS = `You are MindFlow's Mermaid Agent. Your role is to create clear and effective diagrams using Mermaid syntax.
 
 FUNCTION:

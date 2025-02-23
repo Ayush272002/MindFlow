@@ -1,41 +1,57 @@
 "use client";
 
-import type React from "react"
-import { useState, useRef, useEffect, useCallback, type ComponentPropsWithoutRef } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { MicrophoneIcon, PaperAirplaneIcon, StopIcon } from "@heroicons/react/24/solid"
-import { Loader2 } from "lucide-react"
-import Navbar from "@/components/custom/navbar"
-import axios from "axios"
-import ReactMarkdown from 'react-markdown'
-import remarkMath from 'remark-math'
-import rehypeKatex from 'rehype-katex'
-import 'katex/dist/katex.min.css'
+import type React from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  type ComponentPropsWithoutRef,
+} from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  MicrophoneIcon,
+  PaperAirplaneIcon,
+  StopIcon,
+} from "@heroicons/react/24/solid";
+import { Loader2, Speaker } from "lucide-react";
+import Navbar from "@/components/custom/navbar";
+import axios from "axios";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
-
-// Define message structure for chat
 interface Message {
-  id: number
-  content: string  // The actual message text
-  sender: "user" | "ai"
+  role: 'user' | 'assistant';
+  content: string;
+  options?: string[];
+}
+
+interface AgentResponse {
+  status: string;
+  explanation: string;
+  subtopics: string[];
+  prerequisites: string[];
+  summary: string;
 }
 
 const Chat: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
-  const [recording, setRecording] = useState(false)
-  const [isTranscribing, setIsTranscribing] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // refs for DOM manipulation and audio handling
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunks = useRef<Blob[]>([])
-  const audioRef = useRef<HTMLAudioElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunks = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   // Handles automatic scrolling to bottom of chat; TODO: ensure this actually works
   const scrollToBottom = useCallback(() => {
@@ -51,72 +67,73 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [scrollToBottom, messages]);
+  }, [scrollToBottom]);
 
   // Load any saved chat responses from localStorage
   useEffect(() => {
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
       const parsedResponse = JSON.parse(savedResponse);
-      const moduleContent = parsedResponse.explanation || 
-                          parsedResponse.response || 
-                          parsedResponse.summary || 
-                          "No content available";
-      setMessages([{ id: Date.now(), content: moduleContent, sender: "ai" }]);
+      const moduleContent =
+        parsedResponse.explanation ||
+        parsedResponse.response ||
+        parsedResponse.summary ||
+        "No content available";
+      setMessages([{ role: "assistant", content: moduleContent }]);
       localStorage.removeItem("chatResponse");
     }
   }, []);
 
   // handle form submission and API interaction
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!input.trim()) return;
 
     const userMessage: Message = {
-      id: Date.now(),
+      role: "user",
       content: input,
-      sender: "user",
-    }
-    
-    setMessages(prev => [...prev, userMessage])
-    setInput("")
-    setIsLoading(true)
-    
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setIsLoading(true);
+
     try {
       // TODO: Add error handling for network issues
-      const response = await axios.post('http://127.0.0.1:5000/process-content', {
-        notes: input,
-        files: []  // Future enhancement: add file upload support
-      });
+      const response = await axios.post(
+        "http://127.0.0.1:5000/process-interaction",
+        {
+          input: input,
+        }
+      );
 
-      const aiContent = response.data.explanation || 
-                       response.data.response || 
-                       response.data.summary || 
-                       response.data.learning_plan ||
-                       "Sorry, I couldn't generate a response";
-      
+      const aiContent =
+        response.data.explanation ||
+        response.data.response ||
+        response.data.summary ||
+        response.data.learning_plan ||
+        response.data.feedback ||
+        "Sorry, I couldn't generate a response";
+
       const aiMessage: Message = {
-        id: Date.now() + 1,
+        role: "assistant",
         content: aiContent,
-        sender: "ai",
-      }
-      
-      setMessages(prev => [...prev, aiMessage])
-    } 
-    catch (error) {
-      console.error('Error:', error);
-      
+        options: response.data.subtopics
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("Error:", error);
+
       const errorMessage: Message = {
-        id: Date.now() + 1,
+        role: "assistant",
         content: "Oops! Something went wrong. Please try again.",
-        sender: "ai",
-      }
-      
-      setMessages(prev => [...prev, errorMessage])
-    } 
-    finally {
-      setIsLoading(false)
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -155,22 +172,16 @@ const Chat: React.FC = () => {
             }
           );
           setInput((prev) => prev + (prev ? " " : "") + response.data.text);
-        }
-            
-        catch (error) {
+        } catch (error) {
           console.error("Error:", error);
-        }
-        
-        finally {
-
+        } finally {
           setIsTranscribing(false);
         }
       };
 
       recorder.start();
       setRecording(true);
-    } 
-    catch (error) {
+    } catch (error) {
       console.error("Error accessing microphone:", error);
     }
   };
@@ -226,6 +237,121 @@ const Chat: React.FC = () => {
     }
   };
 
+  const handleExplainMore = async (content: string) => {
+    setIsLoading(true);
+    try {
+      const response = await axios.post(
+        "http://127.0.0.1:5000/process-interaction",
+        {
+          input: `Please explain this more deeply: ${content}`,
+        }
+      );
+
+      const aiContent =
+        response.data.explanation ||
+        response.data.response ||
+        "I couldn't generate a deeper explanation";
+
+      const aiMessage: Message = {
+        role: "assistant",
+        content: aiContent,
+        options: response.data.subtopics
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("Error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I couldn't generate a deeper explanation.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTestKnowledge = async (content: string) => {
+    setIsLoading(true);
+    try {
+      const response = await axios.post(
+        "http://127.0.0.1:5000/process-interaction",
+        {
+          input: `Please create a quick test to verify understanding of this content: ${content}`,
+        }
+      );
+
+      const aiContent =
+        response.data.explanation ||
+        response.data.response ||
+        "I couldn't generate a test";
+
+      const aiMessage: Message = {
+        role: "assistant",
+        content: aiContent,
+        options: response.data.subtopics
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("Error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I couldn't generate a test.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOptionClick = async (option: string) => {
+    setInput(option);
+    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+    await handleSubmit(fakeEvent);
+  };
+
+  const handleInteractiveQuestions = async (content: string) => {
+    setIsLoading(true);
+    console.log("handling interactive question");
+    try {
+      const response = await axios.post(
+        "http://127.0.0.1:5000/process-interaction",
+        {
+          input: `Generate a quiz about the following content:\n\n${content}`
+        }
+      );
+
+      const aiContent =
+        response.data.explanation ||
+        response.data.response ||
+        "I couldn't generate interactive questions";
+
+      const aiMessage: Message = {
+        role: "assistant",
+        content: aiContent,
+        options: response.data.subtopics
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("Error:", error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I couldn't generate interactive questions.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col">
       <Navbar loggedIn={true} />
@@ -243,14 +369,13 @@ const Chat: React.FC = () => {
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
                 <motion.div
-                  key={message.id}
                   className={`flex ${
-                    message.sender === "user" ? "justify-end" : "justify-start"
+                    message.role === "user" ? "justify-end" : "justify-start"
                   }`}
                   initial={{
                     opacity: 0,
                     y: 20,
-                    x: message.sender === "user" ? 20 : -20,
+                    x: message.role === "user" ? 20 : -20,
                   }}
                   animate={{ opacity: 1, y: 0, x: 0 }}
                   exit={{
@@ -263,34 +388,83 @@ const Chat: React.FC = () => {
                 >
                   <div
                     className={`max-w-[70%] p-4 rounded-xl ${
-                      message.sender === "user"
+                      message.role === "user"
                         ? "bg-blue-600 text-white"
                         : "bg-gray-100 text-gray-900"
                     }`}
                   >
-                    {message.sender === "ai" ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                        components={{
-                          p: ({children}) => (
-                            <div className="prose prose-sm max-w-none dark:prose-invert mb-4">
-                              {children}
-                            </div>
-                          ),
-                          code: ({ className, children }: ComponentPropsWithoutRef<'code'> & { className?: string }) => (
-                            className?.includes('language-') ? (
-                              <pre>
-                                <code className={className}>{children}</code>
-                              </pre>
-                            ) : (
-                              <code>{children}</code>
-                            )
-                          )
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
+                    {message.role === "assistant" ? (
+                      <>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            p: ({ children }) => (
+                              <div className="prose prose-sm max-w-none dark:prose-invert mb-4">
+                                {children}
+                              </div>
+                            ),
+                            code: ({
+                              className,
+                              children,
+                            }: ComponentPropsWithoutRef<"code"> & {
+                              className?: string;
+                            }) =>
+                              className?.includes("language-") ? (
+                                <pre>
+                                  <code className={className}>{children}</code>
+                                </pre>
+                              ) : (
+                                <code>{children}</code>
+                              ),
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                        {message.options && message.options.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            {message.options.map((option, i) => (
+                              <Button
+                                key={i}
+                                variant="outline"
+                                className="w-full text-left justify-start"
+                                onClick={() => handleOptionClick(option)}
+                              >
+                                {option}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex gap-2 mt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => handleExplainMore(message.content)}
+                          >
+                            Learn More
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() =>
+                              handleInteractiveQuestions(message.content)
+                            }
+                          >
+                            Take Quiz
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => toggleSpeech(message.content)}
+                          >
+                            <Speaker className="h-4 w-4 mr-1" />
+                            {isSpeaking ? "Stop" : "Listen"}
+                          </Button>
+                        </div>
+                      </>
                     ) : (
                       message.content
                     )}
@@ -404,7 +578,7 @@ const Chat: React.FC = () => {
       </motion.div>
       <audio ref={audioRef} className="hidden" />
     </div>
-  )
-}
+  );
+};
 
 export default Chat;
