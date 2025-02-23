@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import type React from "react"
 import { useState, useRef, useEffect, useCallback, type ComponentPropsWithoutRef } from "react"
@@ -14,6 +14,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 
+
 // Define message structure for chat
 interface Message {
   id: number
@@ -27,12 +28,14 @@ const Chat: React.FC = () => {
   const [recording, setRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
 
   // refs for DOM manipulation and audio handling
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunks = useRef<Blob[]>([])
+  const audioRef = useRef<HTMLAudioElement>(null)
 
   // Handles automatic scrolling to bottom of chat; TODO: ensure this actually works
   const scrollToBottom = useCallback(() => {
@@ -40,7 +43,7 @@ const Chat: React.FC = () => {
       setTimeout(() => {
         containerRef.current?.scrollTo({
           top: containerRef.current.scrollHeight,
-          behavior: 'smooth'
+          behavior: "smooth",
         });
       }, 100);
     }
@@ -48,17 +51,16 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [scrollToBottom, messages]);
 
   // Load any saved chat responses from localStorage
   useEffect(() => {
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
       const parsedResponse = JSON.parse(savedResponse);
-      const moduleContent = parsedResponse.data[0]?.module || "No content available";
-      setMessages([
-        { id: Date.now(), content: moduleContent, sender: "ai" },
-      ]);
+      const moduleContent =
+        parsedResponse.data[0]?.module || "No content available";
+      setMessages([{ id: Date.now(), content: moduleContent, sender: "ai" }]);
       localStorage.removeItem("chatResponse");
     }
   }, []);
@@ -110,7 +112,7 @@ const Chat: React.FC = () => {
     finally {
       setIsLoading(false)
     }
-  }
+  };
 
   // Handle voice recording functionality
   const startRecording = async () => {
@@ -128,7 +130,9 @@ const Chat: React.FC = () => {
       // Process recorded audio when stopped
       recorder.onstop = async () => {
         const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
-        const audioFile = new File([audioBlob], "recorded_audio.wav", { type: "audio/wav" });
+        const audioFile = new File([audioBlob], "recorded_audio.wav", {
+          type: "audio/wav",
+        });
         audioChunks.current = [];
 
         // Send to backend for transcription
@@ -137,16 +141,22 @@ const Chat: React.FC = () => {
         formData.append("file", audioFile);
 
         try {
-          const response = await axios.post("http://127.0.0.1:5000/speech2text", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
-          setInput(prev => prev + (prev ? " " : "") + response.data.text);
-        } 
-        catch (error) {
-          console.error("Transcription error:", error);
+          const response = await axios.post(
+            "http://127.0.0.1:5000/speech2text",
+            formData,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+            }
+          );
+          setInput((prev) => prev + (prev ? " " : "") + response.data.text);
         }
-
+            
+        catch (error) {
+          console.error("Error:", error);
+        }
+        
         finally {
+
           setIsTranscribing(false);
         }
       };
@@ -163,9 +173,50 @@ const Chat: React.FC = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setRecording(false);
-      
+
       // Stop all tracks on the stream
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current.stream
+        .getTracks()
+        .forEach((track) => track.stop());
+    }
+  };
+
+  const toggleSpeech = async (text: string) => {
+    if (isSpeaking) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setIsSpeaking(false);
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("text", text);
+
+      const response = await axios.post(
+        "http://127.0.0.1:5000/process-text2speech",
+        formData,
+        {
+          responseType: "blob",
+        }
+      );
+
+      const audioBlob = new Blob([response.data], { type: "audio/wav" });
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.onended = () => {
+          setIsSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+        audioRef.current.play();
+        setIsSpeaking(true);
+      }
+    } catch (error) {
+      console.error("Error generating speech:", error);
+      setIsSpeaking(false);
     }
   };
 
@@ -179,21 +230,36 @@ const Chat: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <div className="flex flex-col h-full">
-          <div ref={containerRef} className="messages-container flex-grow overflow-y-auto mb-4 space-y-4 pb-[160px]">
+          <div
+            ref={containerRef}
+            className="messages-container flex-grow overflow-y-auto mb-4 space-y-4 pb-[160px]"
+          >
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
-                  className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-                  initial={{ opacity: 0, y: 20, x: message.sender === "user" ? 20 : -20 }}
+                  className={`flex ${
+                    message.sender === "user" ? "justify-end" : "justify-start"
+                  }`}
+                  initial={{
+                    opacity: 0,
+                    y: 20,
+                    x: message.sender === "user" ? 20 : -20,
+                  }}
                   animate={{ opacity: 1, y: 0, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                  exit={{
+                    opacity: 0,
+                    scale: 0.95,
+                    transition: { duration: 0.2 },
+                  }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                   layout
                 >
                   <div
                     className={`max-w-[70%] p-4 rounded-xl ${
-                      message.sender === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
+                      message.sender === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-900"
                     }`}
                   >
                     {message.sender === "ai" ? (
@@ -235,9 +301,18 @@ const Chat: React.FC = () => {
                 >
                   <div className="max-w-[70%] p-4 rounded-xl bg-gray-100">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <div
+                        className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
                     </div>
                   </div>
                 </motion.div>
@@ -246,7 +321,10 @@ const Chat: React.FC = () => {
             </AnimatePresence>
           </div>
 
-          <form onSubmit={handleSubmit} className="fixed bottom-0 left-0 right-0 p-6">
+          <form
+            onSubmit={handleSubmit}
+            className="fixed bottom-0 left-0 right-0 p-6"
+          >
             <div className="max-w-[1200px] mx-auto relative">
               <div className="absolute inset-0 bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg -z-10" />
               <div className="relative flex items-end">
@@ -255,7 +333,7 @@ const Chat: React.FC = () => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
+                      if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
                         handleSubmit(e);
                       }
@@ -272,8 +350,8 @@ const Chat: React.FC = () => {
                         variant="ghost"
                         size="icon"
                         className={`h-9 w-9 rounded-lg transition-colors ${
-                          recording 
-                            ? "text-red-500 bg-red-50 hover:bg-red-100" 
+                          recording
+                            ? "text-red-500 bg-red-50 hover:bg-red-100"
                             : "text-blue-600 hover:bg-blue-50"
                         }`}
                       >
@@ -291,7 +369,7 @@ const Chat: React.FC = () => {
                           animate={{ opacity: [0.5, 1] }}
                           transition={{
                             duration: 1,
-                            repeat: Infinity,
+                            repeat: Number.POSITIVE_INFINITY,
                             repeatType: "reverse",
                             ease: "easeInOut",
                           }}
@@ -304,8 +382,8 @@ const Chat: React.FC = () => {
                       size="icon"
                       disabled={!input.trim() || isLoading}
                       className={`h-9 w-9 rounded-lg transition-colors ${
-                        input.trim() 
-                          ? "text-blue-600 hover:bg-blue-50" 
+                        input.trim()
+                          ? "text-blue-600 hover:bg-blue-50"
                           : "text-gray-400"
                       }`}
                     >
@@ -318,8 +396,9 @@ const Chat: React.FC = () => {
           </form>
         </div>
       </motion.div>
+      <audio ref={audioRef} className="hidden" />
     </div>
   )
 }
 
-export default Chat
+export default Chat;
