@@ -16,7 +16,7 @@ import {
   PaperAirplaneIcon,
   StopIcon,
 } from "@heroicons/react/24/solid";
-import { Loader2 } from "lucide-react";
+import { Loader2, Speaker } from "lucide-react";
 import Navbar from "@/components/custom/navbar";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
@@ -35,7 +35,7 @@ const Chat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(true);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -434,6 +434,15 @@ const Chat: React.FC = () => {
                             }
                           >
                             Take Quiz
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => toggleSpeech(message.content)}
+                          >
+                            <Speaker className="h-4 w-4 mr-1" />
+                            {isSpeaking ? "Stop" : "Listen"}
                           </Button>
                         </div>
                       </>
