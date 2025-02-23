@@ -28,7 +28,7 @@ MindFlow supports multiple modalities—including **interactive quizzes**—to m
 
 ## Demo Video
 
-[![Watch the video](public/thumbnail.png)](https://youtu.be/Z9Cpl__wBtg)
+[![Watch the video](public/thumbnail.png)](https://youtube.com/playlist?list=PLtEOnxhRf0cxBIQPYkTwXD_0Q-iyhhnVa&feature=shared)
 
 ## What’s Next for MindFlow?
 
