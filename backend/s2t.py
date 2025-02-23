@@ -8,7 +8,7 @@ CORS(app)  # Enable CORS for frontend communication
 
 # Load Whisper Model
 model_path = os.path.join(app.root_path, 'model/whisper_model.pt')
-model = torch.load(model_path)
+model = torch.load(model_path, weights_only = False)
 
 @app.route('/speech2text', methods=['POST'])
 def transcribe():
