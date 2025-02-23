@@ -26,9 +26,9 @@ import "katex/dist/katex.min.css";
 
 // Define message structure for chat
 interface Message {
-  id: number;
+  role: "user" | "assistant";
   content: string; // The actual message text
-  sender: "user" | "ai";
+  options?: string[];
 }
 
 const Chat: React.FC = () => {
@@ -37,7 +37,7 @@ const Chat: React.FC = () => {
   const [recording, setRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingMessageIndex, setSpeakingMessageIndex] = useState<number | null>(null);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
 
   // refs for DOM manipulation and audio handling
@@ -73,7 +73,7 @@ const Chat: React.FC = () => {
         parsedResponse.response ||
         parsedResponse.summary ||
         "No content available";
-      setMessages([{ id: Date.now(), content: moduleContent, sender: "ai" }]);
+      setMessages([{ role: "assistant", content: moduleContent }]);
       localStorage.removeItem("chatResponse");
     }
   }, []);
@@ -85,9 +85,8 @@ const Chat: React.FC = () => {
     if (!input.trim()) return;
 
     const userMessage: Message = {
-      id: Date.now(),
-      content: input,
-      sender: "user",
+      role: "user",
+      content: input
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -112,9 +111,8 @@ const Chat: React.FC = () => {
         "Sorry, I couldn't generate a response";
 
       const aiMessage: Message = {
-        id: Date.now() + 1,
-        content: aiContent,
-        sender: "ai",
+        role: "assistant",
+        content: aiContent
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -122,9 +120,8 @@ const Chat: React.FC = () => {
       console.error("Error:", error);
 
       const errorMessage: Message = {
-        id: Date.now() + 1,
-        content: "Oops! Something went wrong. Please try again.",
-        sender: "ai",
+        role: "assistant",
+        content: "Oops! Something went wrong. Please try again."
       };
 
       setMessages((prev) => [...prev, errorMessage]);
@@ -194,12 +191,12 @@ const Chat: React.FC = () => {
     }
   };
 
-  const toggleSpeech = async (text: string) => {
-    if (isSpeaking) {
+  const toggleSpeech = async (text: string, messageIndex: number) => {
+    if (speakingMessageIndex === messageIndex) {
       if (audioRef.current) {
         audioRef.current.pause();
       }
-      setIsSpeaking(false);
+      setSpeakingMessageIndex(null);
       return;
     }
 
@@ -220,17 +217,19 @@ const Chat: React.FC = () => {
       const audioUrl = URL.createObjectURL(audioBlob);
 
       if (audioRef.current) {
+        // Stop any currently playing audio
+        audioRef.current.pause();
         audioRef.current.src = audioUrl;
         audioRef.current.onended = () => {
-          setIsSpeaking(false);
+          setSpeakingMessageIndex(null);
           URL.revokeObjectURL(audioUrl);
         };
         audioRef.current.play();
-        setIsSpeaking(true);
+        setSpeakingMessageIndex(messageIndex);
       }
     } catch (error) {
       console.error("Error generating speech:", error);
-      setIsSpeaking(false);
+      setSpeakingMessageIndex(null);
     } finally {
       setIsProcessingAudio(false);
     }
@@ -253,9 +252,8 @@ const Chat: React.FC = () => {
         "I couldn't generate a deeper explanation";
 
       const aiMessage: Message = {
-        id: Date.now(),
-        content: aiContent,
-        sender: "ai",
+        role: "assistant",
+        content: aiContent
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -264,9 +262,8 @@ const Chat: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now(),
-          content: "Sorry, I couldn't generate a deeper explanation.",
-          sender: "ai",
+          role: "assistant",
+          content: "Sorry, I couldn't generate a deeper explanation."
         },
       ]);
     } finally {
@@ -291,9 +288,8 @@ const Chat: React.FC = () => {
         "I couldn't generate a test";
 
       const aiMessage: Message = {
-        id: Date.now(),
-        content: aiContent,
-        sender: "ai",
+        role: "assistant",
+        content: aiContent
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -302,9 +298,8 @@ const Chat: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now(),
-          content: "Sorry, I couldn't generate a test.",
-          sender: "ai",
+          role: "assistant",
+          content: "Sorry, I couldn't generate a test."
         },
       ]);
     } finally {
@@ -314,12 +309,12 @@ const Chat: React.FC = () => {
 
   const handleInteractiveQuestions = async (content: string) => {
     setIsLoading(true);
+    console.log("handling interactive question");
     try {
       const response = await axios.post(
-        "http://127.0.0.1:5000/process-content",
+        "http://127.0.0.1:5000/process-interaction",
         {
-          notes: `Please create interactive questions to verify understanding of this content: ${content}`,
-          files: [],
+          input: `Generate a quiz about the following content:\n\n${content}`
         }
       );
 
@@ -329,9 +324,9 @@ const Chat: React.FC = () => {
         "I couldn't generate interactive questions";
 
       const aiMessage: Message = {
-        id: Date.now(),
+        role: "assistant",
         content: aiContent,
-        sender: "ai",
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -340,15 +335,15 @@ const Chat: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now(),
-          content: "Sorry, I couldn't generate interactive questions.",
-          sender: "ai",
+          role: "assistant",
+          content: "Sorry, I couldn't generate interactive questions."
         },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="h-screen flex flex-col">
@@ -365,9 +360,9 @@ const Chat: React.FC = () => {
             className="messages-container flex-grow overflow-y-auto mb-4 space-y-6 pb-[160px] max-w-4xl mx-auto"
           >
             <AnimatePresence mode="popLayout">
-              {messages.map((message) => (
+              {messages.map((message, index) => (
                 <motion.div
-                  key={message.id}
+                  key={index}
                   className={`flex justify-center`}
                   initial={{
                     opacity: 0,
@@ -385,12 +380,12 @@ const Chat: React.FC = () => {
                 >
                   <div
                     className={`w-[85%] p-6 rounded-2xl ${
-                      message.sender === "user"
+                      message.role === "user"
                         ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
                         : "bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900"
                     } shadow-sm`}
                   >
-                    {message.sender === "ai" ? (
+                    {message.role === "assistant" ? (
                       <>
                         <ReactMarkdown
                           remarkPlugins={[remarkMath]}
@@ -441,7 +436,7 @@ const Chat: React.FC = () => {
                             variant="outline"
                             size="sm"
                             className="text-xs"
-                            onClick={() => toggleSpeech(message.content)}
+                            onClick={() => toggleSpeech(message.content, index)}
                             disabled={isProcessingAudio}
                           >
                             {isProcessingAudio ? (
@@ -449,7 +444,7 @@ const Chat: React.FC = () => {
                             ) : (
                               <Speaker className="h-4 w-4 mr-1" />
                             )}
-                            {isSpeaking ? "Stop" : isProcessingAudio ? "Processing..." : "Listen"}
+                            {speakingMessageIndex === index ? "Stop" : isProcessingAudio ? "Processing..." : "Listen"}
                           </Button>
                         </div>
                       </>
