@@ -1,5 +1,3 @@
-import { AnswerEvalAgentInput, AnswerEvalAgentOutput } from '../../types/newAgents';
-
 export const ANSWER_EVAL_AGENT_INSTRUCTIONS = `You are MindFlow's Answer Evaluation Agent. Your role is to assess user responses and provide constructive feedback.
 
 FUNCTION:

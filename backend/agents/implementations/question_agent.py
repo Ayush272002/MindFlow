@@ -16,7 +16,6 @@ def handle_question(
         input_data
     )
     
-    # Ensure the response matches expected format
     return QuestionAgentOutput(
         question=result.get('question', 'What do you know about this topic?'),
         type=result.get('type', 'MCQ'),

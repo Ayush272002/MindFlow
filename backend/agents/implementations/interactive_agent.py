@@ -15,8 +15,7 @@ def handle_interactive(
         INTERACTIVE_AGENT_INSTRUCTIONS,
         input_data
     )
-    
-    # Ensure the response matches expected format
+
     return InteractiveAgentOutput(
         response=result.get('response', 'I understand. Let me help you with that.')
     ) 
