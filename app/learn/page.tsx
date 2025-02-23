@@ -64,7 +64,19 @@ export default function UploadModule() {
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(true);
+// <<<<<<< HEAD
+//     setIsDragging(true);
+// =======
+    const hasValidFile = Array.from(e.dataTransfer.items).some(
+      (item) =>
+        item.type === "application/pdf" ||
+        (item.kind === "file" && item.type.includes("pdf"))
+    );
+    setIsDragging(hasValidFile);
+    if (!hasValidFile) {
+      e.dataTransfer.dropEffect = "none";
+    }
+// >>>>>>> 554edbb75d73b37c832e60d5103f94cb2b20149e
   };
 
   const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
@@ -86,7 +98,36 @@ export default function UploadModule() {
     }
   };
 
+  const validateFiles = (files: File[]) => {
+    const validFiles: File[] = [];
+    const invalidFiles: File[] = [];
+
+    files.forEach(file => {
+      if (file.type === "application/pdf") {
+        validFiles.push(file);
+      } else {
+        invalidFiles.push(file);
+      }
+    });
+
+    return { validFiles, invalidFiles };
+  };
+
   const handleFiles = async (files: File[]) => {
+// <<<<<<< HEAD
+// =======
+    const { validFiles, invalidFiles } = validateFiles(files);
+
+    if (invalidFiles.length > 0) {
+      toast.error("Only PDF files are allowed");
+      return;
+    }
+
+    if (validFiles.length === 0) {
+      return;
+    }
+
+// >>>>>>> 554edbb75d73b37c832e60d5103f94cb2b20149e
     setUploading(true);
     setProgress(0);
     const uploadedData: { name: string; url: string }[] = [];
@@ -172,6 +213,8 @@ export default function UploadModule() {
         files: uploadedFiles.map((file) => file.url),
       };
 
+      console.log("Sending payload:", payload);
+
       const response = await fetch("http://127.0.0.1:5000/process-content", {
         method: "POST",
         headers: {
@@ -183,6 +226,15 @@ export default function UploadModule() {
       if (!response.ok) throw new Error("Failed to process content");
 
       const data = await response.json();
+
+      console.log("Response data:", data);
+
+      if (!response.ok) {
+        const errorMessage = data.error || "Failed to process content";
+        console.error("Backend error:", errorMessage); 
+        throw new Error(errorMessage);
+      }
+
       console.log("Processed Data:", data);
       localStorage.setItem("chatResponse", JSON.stringify(data));
 
@@ -192,9 +244,15 @@ export default function UploadModule() {
 
       setNotes("");
       router.push("/learn/chat");
-    } catch (error) {
-      console.error(error);
-      toast.error("There was an error processing your content");
+    }
+    
+    catch (error) {
+      console.error("Error details:", error); 
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "There was an error processing your content"
+      );
     }
 
     setUploading(false);
