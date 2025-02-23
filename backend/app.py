@@ -29,6 +29,7 @@ CORS(app)
 
 genai.configure(api_key=f"{os.environ.get('GEMINI_API_KEY')}")
 
+# Set up downloads directory for storing PDFs
 DOWNLOADS_DIR = "downloads/"
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
@@ -37,6 +38,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 def download_file(file_url):
+    """Downloads a PDF file from URL and saves it locally"""
     print(file_url)
     print(file_url.split("/"))
     local_filename = DOWNLOADS_DIR + file_url.split("/")[-2] + ".pdf"
@@ -64,12 +66,15 @@ def extract_text_from_pdf(pdf_path):
 
 
 def process_with_gemini(text):
+    """Sends text to Gemini AI to create a learning module"""
+    # TODO: Integrate with a new agent that handles RAG and
     model = genai.GenerativeModel("gemini-pro")
     prompt = f"Create an interactive learning module from this content:\n\n{text}"
 
     try:
         response = model.generate_content(prompt)
         return response.text
+    
     except Exception as e:
         print(f"Error processing with Gemini: {e}")
         return None
@@ -126,6 +131,7 @@ def process_text2speech():
 
 @app.route("/process-content", methods=["POST"])
 def process_content():
+    """Handles content processing requests - combines notes and PDF text"""
     data = request.json
     notes = data.get("notes", "")
     files = data.get("files", [])
@@ -133,6 +139,7 @@ def process_content():
     extracted_text = notes.strip()
     processed_results = []
 
+    # Process each PDF file
     for file_url in files:
         pdf_path = download_file(file_url)
         if pdf_path and pdf_path.endswith(".pdf"):
@@ -148,26 +155,31 @@ def process_content():
     return jsonify({"status": "success", "data": processed_results})
 
 # Load Whisper Model
+# TODO: Add error handling for model loading
 model_path = os.path.join(app.root_path, 'model/whisper_model.pt')
-model = torch.load(model_path, weights_only = False)
+model = torch.load(model_path, weights_only=False)  # Load speech recognition model
 
 @app.route('/speech2text', methods=['POST'])
 def transcribe():
-    file_path = "temp_audio.wav"
+    """Converts speech audio to text using Whisper model"""
+    temp_file = "temp_audio.wav"
 
+    # Handle both file upload and direct audio recording
     if 'file' in request.files:
         file = request.files['file']
-        file.save(file_path)
+        file.save(temp_file)
     
     elif request.data:
-        with open(file_path, "wb") as f:
+        # If the request contains raw binary audio data (recorded audio)
+        with open(temp_file, "wb") as f:
             f.write(request.data)
-
+    
     else:
         return jsonify({"error": "No audio data received"}), 400
 
-    result = model.transcribe(file_path)
-    os.remove(file_path)  
+    # Convert speech to text
+    result = model.transcribe(temp_file)
+    os.remove(temp_file)  # Clean up temporary file after processing
 
     return jsonify({"text": result["text"]})
 
