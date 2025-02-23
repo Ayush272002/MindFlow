@@ -1,41 +1,43 @@
 "use client";
 
-import type React from "react";
-import { useState, useRef, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  MicrophoneIcon,
-  PaperAirplaneIcon,
-  StopIcon,
-  SpeakerWaveIcon,
-  SpeakerXMarkIcon,
-} from "@heroicons/react/24/solid";
-import { Loader2 } from "lucide-react";
-import Navbar from "@/components/custom/navbar";
-import axios from "axios";
-import ReactMarkdown from "react-markdown";
+import type React from "react"
+import { useState, useRef, useEffect, useCallback, type ComponentPropsWithoutRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { MicrophoneIcon, PaperAirplaneIcon, StopIcon } from "@heroicons/react/24/solid"
+import { Loader2 } from "lucide-react"
+import Navbar from "@/components/custom/navbar"
+import axios from "axios"
+import ReactMarkdown from 'react-markdown'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import 'katex/dist/katex.min.css'
 
+
+// Define message structure for chat
 interface Message {
-  id: number;
-  content: string;
-  sender: "user" | "ai";
+  id: number
+  content: string  // The actual message text
+  sender: "user" | "ai"
 }
 
 const Chat: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [recording, setRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunks = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [recording, setRecording] = useState(false)
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
 
+  // refs for DOM manipulation and audio handling
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunks = useRef<Blob[]>([])
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  // Handles automatic scrolling to bottom of chat; TODO: ensure this actually works
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
       setTimeout(() => {
@@ -51,6 +53,7 @@ const Chat: React.FC = () => {
     scrollToBottom();
   }, [scrollToBottom, messages]);
 
+  // Load any saved chat responses from localStorage
   useEffect(() => {
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
@@ -62,65 +65,70 @@ const Chat: React.FC = () => {
     }
   }, []);
 
+  // handle form submission and API interaction
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim()) {
-      const newMessage: Message = {
-        id: Date.now(),
-        content: input,
-        sender: "user",
-      };
-      setMessages((prevMessages) => [...prevMessages, newMessage]);
-      setInput("");
-      setIsLoading(true);
+    e.preventDefault()
+    
+    if (!input.trim()) return;
 
-      try {
-        // Get response from backend
-        const response = await axios.post(
-          "http://127.0.0.1:5000/process-content",
-          {
-            notes: input,
-            files: [], // Add file handling if needed
-          }
-        );
+    const userMessage: Message = {
+      id: Date.now(),
+      content: input,
+      sender: "user",
+    }
+    
+    setMessages(prev => [...prev, userMessage])
+    setInput("")
+    setIsLoading(true)
+    
+    try {
+      // TODO: Add error handling for network issues
+      const response = await axios.post('http://127.0.0.1:5000/process-content', {
+        notes: input,
+        files: []  // Future enhancement: add file upload support
+      });
 
-        // Extract just the module content from the response
-        const moduleContent =
-          response.data.data[0]?.module || "No response generated";
-
-        const aiResponse: Message = {
-          id: Date.now() + 1,
-          content: moduleContent,
-          sender: "ai",
-        };
-        setMessages((prevMessages) => [...prevMessages, aiResponse]);
-      } catch (error) {
-        console.error("Error:", error);
-        const errorMessage: Message = {
-          id: Date.now() + 1,
-          content: "Sorry, there was an error processing your request.",
-          sender: "ai",
-        };
-        setMessages((prevMessages) => [...prevMessages, errorMessage]);
-      } finally {
-        setIsLoading(false);
+      const aiContent = response.data.data[0]?.module || "Sorry, I couldn't generate a response";
+      
+      const aiMessage: Message = {
+        id: Date.now() + 1,
+        content: aiContent,
+        sender: "ai",
       }
+      
+      setMessages(prev => [...prev, aiMessage])
+    } 
+    catch (error) {
+      console.error('Error:', error);
+      
+      const errorMessage: Message = {
+        id: Date.now() + 1,
+        content: "Oops! Something went wrong. Please try again.",
+        sender: "ai",
+      }
+      
+      setMessages(prev => [...prev, errorMessage])
+    } 
+    finally {
+      setIsLoading(false)
     }
   };
 
+  // Handle voice recording functionality
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
 
-      mediaRecorder.ondataavailable = (event) => {
+      recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           audioChunks.current.push(event.data);
         }
       };
 
-      mediaRecorder.onstop = async () => {
+      // Process recorded audio when stopped
+      recorder.onstop = async () => {
         const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
         const audioFile = new File([audioBlob], "recorded_audio.wav", {
           type: "audio/wav",
@@ -141,16 +149,22 @@ const Chat: React.FC = () => {
             }
           );
           setInput((prev) => prev + (prev ? " " : "") + response.data.text);
-        } catch (error) {
+        }
+            
+        catch (error) {
           console.error("Error:", error);
-        } finally {
+        }
+        
+        finally {
+
           setIsTranscribing(false);
         }
       };
 
-      mediaRecorder.start();
+      recorder.start();
       setRecording(true);
-    } catch (error) {
+    } 
+    catch (error) {
       console.error("Error accessing microphone:", error);
     }
   };
@@ -249,32 +263,28 @@ const Chat: React.FC = () => {
                     }`}
                   >
                     {message.sender === "ai" ? (
-                      <div className="relative">
-                        <Button
-                          onClick={() => toggleSpeech(message.content)}
-                          variant="ghost"
-                          size="icon"
-                          className="absolute -right-12 top-0 h-8 w-8 rounded-lg text-gray-500 hover:bg-gray-100"
-                        >
-                          {isSpeaking ? (
-                            <SpeakerXMarkIcon className="h-4 w-4" />
-                          ) : (
-                            <SpeakerWaveIcon className="h-4 w-4" />
-                          )}
-                        </Button>
-                        <ReactMarkdown
-                          components={{
-                            p: ({ node, ...props }) => (
-                              <p
-                                className="prose prose-sm max-w-none dark:prose-invert"
-                                {...props}
-                              />
-                            ),
-                          }}
-                        >
-                          {message.content}
-                        </ReactMarkdown>
-                      </div>
+                      <ReactMarkdown
+                        remarkPlugins={[remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{
+                          p: ({children}) => (
+                            <div className="prose prose-sm max-w-none dark:prose-invert mb-4">
+                              {children}
+                            </div>
+                          ),
+                          code: ({ className, children }: ComponentPropsWithoutRef<'code'> & { className?: string }) => (
+                            className?.includes('language-') ? (
+                              <pre>
+                                <code className={className}>{children}</code>
+                              </pre>
+                            ) : (
+                              <code>{children}</code>
+                            )
+                          )
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
                     ) : (
                       message.content
                     )}
@@ -388,7 +398,7 @@ const Chat: React.FC = () => {
       </motion.div>
       <audio ref={audioRef} className="hidden" />
     </div>
-  );
-};
+  )
+}
 
 export default Chat;
