@@ -81,11 +81,20 @@ class AgentService:
         entry['timestamp'] = datetime.now().isoformat()
         self.learning_state.session_history.append(entry)
 
+    def _handle_answer_evaluation(self, topic: str) -> None:
+        self.learning_state.awaiting_answer = False
+        answer_eval_input = AnswerEvalAgentInput("", self.learning_state.active_subtopic, self.learning_state.current_topic, self.learning_state.last_question, topic)
+        answer_eval = handle_answer_eval(self.model, answer_eval_input, self._call_agent)
+        return {
+            "is_correct": answer_eval.is_correct,
+            "feedback": answer_eval.feedback            
+        }
+
     def _call_agent(self, instructions: str, input_data: Any) -> Any:
         """Handle communication with the AI model."""
         print('\n=== Agent Call ===')
         print('Instructions:', instructions.split('\n')[0])
-        print('Input:', json.dumps(input_data.to_dict(), indent=2))
+        print('Input:', json.dumps(getattr(input_data, "to_dict", lambda: input_data)(), indent=2))
 
         try:
             chat = self.model.start_chat(history=[
@@ -100,7 +109,7 @@ class AgentService:
             ])
 
             result = chat.send_message(json.dumps({
-                **input_data.to_dict(),
+                **(input_data if isinstance(input_data, dict) else input_data.to_dict()),
                 'response_format': 'json',
                 'format_instructions': 'Return only valid JSON without any markdown formatting or additional text.'
             }))
@@ -115,7 +124,7 @@ class AgentService:
                 json_end = response.rfind('}') + 1
                 if json_start >= 0 and json_end > json_start:
                     clean_response = response[json_start:json_end]
-                    parsed_response = json.loads(clean_response)
+                    parsed_response = json.loads(clean_response, strict=False)
                 else:
                     # If no JSON found, try to extract useful information
                     # and format it as a response
@@ -192,11 +201,15 @@ class AgentService:
 
         return handle_safety(self.model, safety_input, self._call_agent)
 
-    def start_new_topic(self, topic: str, user_background: Optional[str] = None) -> ExplorationAgentOutput:
+    def start_new_topic(self, topic: str, user_background: Optional[str] = None, current_topic: Optional[str] = None, active_subtopic: Optional[str] = None, session_history: Optional[List[str]] = None) -> ExplorationAgentOutput:
         """Begin a new learning topic."""
         print('\n=== Starting Agent Pipeline ===')
         print('Input:', topic)
         
+        self.learning_state.current_topic = current_topic if current_topic != None else topic
+        self.learning_state.active_subtopic = active_subtopic if active_subtopic != None else topic
+        self.learning_state.session_history = session_history if session_history != None else []
+
         # Run safety check first
         safety_check = self.run_safety_check(topic)
         if safety_check.status != SafetyStatus.SAFE:
@@ -205,7 +218,7 @@ class AgentService:
                 explanation=safety_check.explanation,
                 subtopics=[],
                 prerequisites=[],
-                summary=""
+                summary=safety_check.explanation
             )
 
         # Use agent classifier
@@ -257,7 +270,7 @@ class AgentService:
                     explanation=response.response,
                     subtopics=[],
                     prerequisites=[],
-                    summary=""
+                    summary=response.response
                 )
 
             case 'question':
@@ -275,7 +288,7 @@ class AgentService:
                     explanation=response.question,
                     subtopics=response.options if response.type == 'MCQ' else [],
                     prerequisites=[],
-                    summary=""
+                    summary=response.question
                 )
 
             case 'deepDive':
@@ -287,7 +300,7 @@ class AgentService:
                 response = handle_deep_dive(self.model, input_data, self._call_agent)
                 return ExplorationAgentOutput(
                     status=SafetyStatus.SAFE,
-                    explanation="Here's a detailed breakdown of the concept",
+                    explanation=response.breakdown,
                     subtopics=[],
                     prerequisites=[],
                     summary=response.breakdown
@@ -302,10 +315,10 @@ class AgentService:
                 response = handle_flashcard(self.model, input_data, self._call_agent)
                 return ExplorationAgentOutput(
                     status=SafetyStatus.SAFE,
-                    explanation="Here are your study flashcards",
+                    explanation="Here are your study flashcards\n\n" + response.csv_content,
                     subtopics=[],
                     prerequisites=[],
-                    summary=response.csv_content
+                    summary=context_summary
                 )
 
             case 'cheatsheet':
@@ -317,7 +330,7 @@ class AgentService:
                 response = handle_cheatsheet(self.model, input_data, self._call_agent)
                 return ExplorationAgentOutput(
                     status=SafetyStatus.SAFE,
-                    explanation="Here's your quick reference cheatsheet",
+                    explanation=response.content,
                     subtopics=[],
                     prerequisites=[],
                     summary=response.content
@@ -333,10 +346,10 @@ class AgentService:
                 response = handle_mermaid(self.model, input_data, self._call_agent)
                 return ExplorationAgentOutput(
                     status=SafetyStatus.SAFE,
-                    explanation="Here's a visual representation",
+                    explanation=response.mermaid_code,
                     subtopics=[],
                     prerequisites=[],
-                    summary=response.mermaid_code
+                    summary=context_summary
                 )
 
             case 'config':
@@ -347,7 +360,7 @@ class AgentService:
                 response = handle_config(self.model, input_data, self._call_agent)
                 return ExplorationAgentOutput(
                     status=SafetyStatus.SAFE,
-                    explanation="Configuration updated",
+                    explanation=response.prompt_addition,
                     subtopics=[],
                     prerequisites=[],
                     summary=response.prompt_addition
