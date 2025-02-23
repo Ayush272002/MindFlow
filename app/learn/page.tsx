@@ -50,29 +50,38 @@ export default function UploadModule() {
     { name: string; url: string }[]
   >([]);
 
-  const validateFiles = (files: File[]): { validFiles: File[], invalidFiles: File[] } => {
-    return files.reduce((acc, file) => {
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        acc.validFiles.push(file);
-      } else {
-        acc.invalidFiles.push(file);
-      }
-      return acc;
-    }, { validFiles: [] as File[], invalidFiles: [] as File[] });
+  const validateFiles = (
+    files: File[]
+  ): { validFiles: File[]; invalidFiles: File[] } => {
+    return files.reduce(
+      (acc, file) => {
+        if (
+          file.type === "application/pdf" ||
+          file.name.toLowerCase().endsWith(".pdf")
+        ) {
+          acc.validFiles.push(file);
+        } else {
+          acc.invalidFiles.push(file);
+        }
+        return acc;
+      },
+      { validFiles: [] as File[], invalidFiles: [] as File[] }
+    );
   };
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     // Only show the drag effect if at least one file is a PDF
-    const hasValidFile = Array.from(e.dataTransfer.items).some(item => 
-      item.type === 'application/pdf' || 
-      (item.kind === 'file' && item.type.includes('pdf'))
+    const hasValidFile = Array.from(e.dataTransfer.items).some(
+      (item) =>
+        item.type === "application/pdf" ||
+        (item.kind === "file" && item.type.includes("pdf"))
     );
     setIsDragging(hasValidFile);
-    
+
     // Add visual feedback for invalid files
     if (!hasValidFile) {
-      e.dataTransfer.dropEffect = 'none';
+      e.dataTransfer.dropEffect = "none";
     }
   };
 
@@ -85,83 +94,25 @@ export default function UploadModule() {
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
-    
-    const { validFiles, invalidFiles } = validateFiles(files);
-    
-    if (invalidFiles.length > 0) {
-      toast.error(`${invalidFiles.length} file(s) were rejected. Only PDF files are allowed.`);
-    }
-    
-    if (validFiles.length > 0) {
-      await handleFiles(validFiles);
-    }
+    await handleFiles(files);
   };
 
   const onFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    
-    // Validate file types - only allow PDFs
-    const invalidFiles = files.filter(file => 
-      file.type !== 'application/pdf' && 
-      !file.name.toLowerCase().endsWith('.pdf')
-    );
-
-    if (invalidFiles.length > 0) {
-      toast.error('Only PDF files are allowed');
-      e.target.value = ''; // Clear the file input
-      return;
-    }
-
-    setUploading(true);
-    setProgress(0);
-
-    try {
-      const uploadedFiles = await Promise.all(
-        files.map(async (file) => {
-          const formData = new FormData();
-          formData.append("file", file);
-
-          const response = await fetch("/api/upload", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!response.ok) throw new Error("Upload failed");
-
-          const data = await response.json();
-          return {
-            name: file.name,
-            url: data.url,
-            type: file.type,
-          };
-        })
-      );
-
-      setUploadedFiles((prev) => [...prev, ...uploadedFiles]);
-      toast.success("Files uploaded successfully");
-    }
-    
-    catch (error) {
-      console.error("Upload error:", error);
-      toast.error("Error uploading files");
-    }
-    
-    finally {
-      setUploading(false);
-      setProgress(0);
-      e.target.value = ''; // Clear the file input
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      await handleFiles(files);
     }
   };
 
   const handleFiles = async (files: File[]) => {
     // Double-check validation before uploading
     const { validFiles, invalidFiles } = validateFiles(files);
-    
+
     if (invalidFiles.length > 0) {
-      toast.error('Only PDF files are allowed');
+      toast.error("Only PDF files are allowed");
       return;
     }
-    
+
     if (validFiles.length === 0) {
       return;
     }
@@ -284,7 +235,11 @@ export default function UploadModule() {
       router.push("/learn/chat");
     } catch (error) {
       console.error("Error details:", error); // Debug log
-      toast.error(error instanceof Error ? error.message : "There was an error processing your content");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "There was an error processing your content"
+      );
     }
 
     setUploading(false);
