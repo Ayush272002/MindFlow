@@ -119,6 +119,7 @@ const Chat: React.FC = () => {
       const aiMessage: Message = {
         role: "assistant",
         content: aiContent,
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -254,6 +255,7 @@ const Chat: React.FC = () => {
       const aiMessage: Message = {
         role: "assistant",
         content: aiContent,
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -289,6 +291,7 @@ const Chat: React.FC = () => {
       const aiMessage: Message = {
         role: "assistant",
         content: aiContent,
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
