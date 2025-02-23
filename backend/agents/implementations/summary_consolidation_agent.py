@@ -15,8 +15,7 @@ def handle_summary(
         SUMMARY_CONSOLIDATION_AGENT_INSTRUCTIONS,
         input_data
     )
-    
-    # Ensure the response matches expected format
+
     return SummaryConsolidationAgentOutput(
         summary=result.get('summary', 'Session summary will be provided here.'),
         key_points=result.get('key_points', ['Key learning points will be listed here']),
