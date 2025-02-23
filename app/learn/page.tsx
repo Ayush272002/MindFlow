@@ -2,8 +2,8 @@
 
 import type React from "react";
 
-import { useState } from "react";
-import { Upload, Loader2, Sparkles, Book, Video, FileText } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Upload, Loader2, Sparkles, Book, Video, FileText, X, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { Progress } from "@/components/ui/progress";
@@ -41,6 +41,7 @@ const scaleIn = {
 
 export default function UploadModule() {
   const router = useRouter();
+  const [showAllConversations, setShowAllConversations] = useState(false);
 
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -50,39 +51,20 @@ export default function UploadModule() {
     { name: string; url: string }[]
   >([]);
 
-  const validateFiles = (
-    files: File[]
-  ): { validFiles: File[]; invalidFiles: File[] } => {
-    return files.reduce(
-      (acc, file) => {
-        if (
-          file.type === "application/pdf" ||
-          file.name.toLowerCase().endsWith(".pdf")
-        ) {
-          acc.validFiles.push(file);
-        } else {
-          acc.invalidFiles.push(file);
-        }
-        return acc;
-      },
-      { validFiles: [] as File[], invalidFiles: [] as File[] }
-    );
-  };
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && showAllConversations) {
+        setShowAllConversations(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, [showAllConversations]);
 
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    // Only show the drag effect if at least one file is a PDF
-    const hasValidFile = Array.from(e.dataTransfer.items).some(
-      (item) =>
-        item.type === "application/pdf" ||
-        (item.kind === "file" && item.type.includes("pdf"))
-    );
-    setIsDragging(hasValidFile);
-
-    // Add visual feedback for invalid files
-    if (!hasValidFile) {
-      e.dataTransfer.dropEffect = "none";
-    }
+    setIsDragging(true);
   };
 
   const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
@@ -105,23 +87,11 @@ export default function UploadModule() {
   };
 
   const handleFiles = async (files: File[]) => {
-    // Double-check validation before uploading
-    const { validFiles, invalidFiles } = validateFiles(files);
-
-    if (invalidFiles.length > 0) {
-      toast.error("Only PDF files are allowed");
-      return;
-    }
-
-    if (validFiles.length === 0) {
-      return;
-    }
-
     setUploading(true);
     setProgress(0);
     const uploadedData: { name: string; url: string }[] = [];
 
-    for (const file of validFiles) {
+    for (const file of files) {
       try {
         const { cdnUrl } = await client.uploadFile(file);
         uploadedData.push({ name: file.name, url: cdnUrl });
@@ -202,9 +172,6 @@ export default function UploadModule() {
         files: uploadedFiles.map((file) => file.url),
       };
 
-      // Debug log
-      console.log("Sending payload:", payload);
-
       const response = await fetch("http://127.0.0.1:5000/process-content", {
         method: "POST",
         headers: {
@@ -213,17 +180,9 @@ export default function UploadModule() {
         body: JSON.stringify(payload),
       });
 
+      if (!response.ok) throw new Error("Failed to process content");
+
       const data = await response.json();
-      // Debug log
-      console.log("Response data:", data);
-
-      if (!response.ok) {
-        // Get the error message from the backend response
-        const errorMessage = data.error || "Failed to process content";
-        console.error("Backend error:", errorMessage); // Debug log
-        throw new Error(errorMessage);
-      }
-
       console.log("Processed Data:", data);
       localStorage.setItem("chatResponse", JSON.stringify(data));
 
@@ -234,12 +193,8 @@ export default function UploadModule() {
       setNotes("");
       router.push("/learn/chat");
     } catch (error) {
-      console.error("Error details:", error); // Debug log
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "There was an error processing your content"
-      );
+      console.error(error);
+      toast.error("There was an error processing your content");
     }
 
     setUploading(false);
@@ -249,6 +204,85 @@ export default function UploadModule() {
   return (
     <>
       <Navbar loggedIn={true} />
+
+      <AnimatePresence>
+        {showAllConversations && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50"
+            onClick={() => setShowAllConversations(false)}
+          >
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="absolute inset-x-0 bottom-0 bg-white rounded-t-[2.5rem] p-8 min-h-[80vh] shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="max-w-6xl mx-auto">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowAllConversations(false)}
+                      className="rounded-full"
+                    >
+                      <ArrowLeft className="h-6 w-6" />
+                    </Button>
+                    <h2 className="text-3xl font-bold">All Conversations</h2>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  {conversations.map((conv) => (
+                    <motion.div
+                      key={conv.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="group relative rounded-2xl bg-gradient-to-tr from-gray-50 to-blue-50 p-6 hover:shadow-lg transition-all"
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                    >
+                      <div className={cn("absolute inset-0 rounded-2xl bg-gradient-to-r", conv.color)} />
+                      <div className="relative flex items-center gap-6">
+                        <div className="h-16 w-16 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center text-3xl flex-shrink-0">
+                          {conv.icon}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xl font-medium text-gray-900">{conv.title}</h3>
+                            <span className="text-sm text-gray-500">{conv.timestamp}</span>
+                          </div>
+                          <p className="text-gray-600 mb-3">{conv.description}</p>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Progress</span>
+                              <span className="font-medium text-gray-900">{conv.progress}%</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                              <motion.div
+                                className="h-full bg-gradient-to-r from-blue-600 to-violet-600"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${conv.progress}%` }}
+                                transition={{ duration: 1, ease: "easeOut" }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-blue-50/30 px-4 pt-16 pb-8">
         <motion.div
@@ -323,7 +357,7 @@ export default function UploadModule() {
                       Drop your files here
                     </p>
                     <p className="text-gray-600 mt-2">
-                      or click to select PDFs
+                      or click to select files
                     </p>
                   </div>
                 </motion.div>
@@ -331,11 +365,15 @@ export default function UploadModule() {
                 <div className="flex flex-wrap justify-center gap-3 text-sm text-gray-500">
                   <div className="flex items-center gap-1.5">
                     <FileText className="w-4 h-4" />
-                    <span>Lecture Slides</span>
+                    <span>PDFs</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Book className="w-4 h-4" />
-                    <span>Research Papers</span>
+                    <span>Presentations</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Video className="w-4 h-4" />
+                    <span>Videos</span>
                   </div>
                 </div>
 
@@ -343,7 +381,7 @@ export default function UploadModule() {
                   <input
                     type="file"
                     onChange={onFileSelect}
-                    accept=".pdf"
+                    accept=".pdf,.ppt,.pptx,.mp4"
                     multiple
                     className="hidden"
                     id="file-upload"
@@ -440,7 +478,11 @@ export default function UploadModule() {
           >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-semibold">Recent Conversations</h2>
-              <Button variant="ghost" className="text-blue-600">
+              <Button 
+                variant="ghost" 
+                className="text-blue-600"
+                onClick={() => setShowAllConversations(true)}
+              >
                 View All
               </Button>
             </div>
