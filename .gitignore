@@ -43,3 +43,5 @@ next-env.d.ts
 myenv
 
 backend/downloads/
+backend/model/
+backend/venv/
