@@ -16,7 +16,7 @@ import {
   PaperAirplaneIcon,
   StopIcon,
 } from "@heroicons/react/24/solid";
-import { Loader2, Speaker } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Navbar from "@/components/custom/navbar";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
@@ -24,21 +24,27 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
-// Define message structure for chat
 interface Message {
-  id: number;
-  content: string; // The actual message text
-  sender: "user" | "ai";
+  role: 'user' | 'assistant';
+  content: string;
+  options?: string[];
+}
+
+interface AgentResponse {
+  status: string;
+  explanation: string;
+  subtopics: string[];
+  prerequisites: string[];
+  summary: string;
 }
 
 const Chat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [recording, setRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
 
   // refs for DOM manipulation and audio handling
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -73,7 +79,7 @@ const Chat: React.FC = () => {
         parsedResponse.response ||
         parsedResponse.summary ||
         "No content available";
-      setMessages([{ id: Date.now(), content: moduleContent, sender: "ai" }]);
+      setMessages([{ role: "assistant", content: moduleContent }]);
       localStorage.removeItem("chatResponse");
     }
   }, []);
@@ -85,9 +91,8 @@ const Chat: React.FC = () => {
     if (!input.trim()) return;
 
     const userMessage: Message = {
-      id: Date.now(),
+      role: "user",
       content: input,
-      sender: "user",
     };
 
     setMessages((prev) => [...prev, userMessage]);
@@ -97,10 +102,9 @@ const Chat: React.FC = () => {
     try {
       // TODO: Add error handling for network issues
       const response = await axios.post(
-        "http://127.0.0.1:5000/process-content",
+        "http://127.0.0.1:5000/process-interaction",
         {
-          notes: input,
-          files: [], // Future enhancement: add file upload support
+          input: input,
         }
       );
 
@@ -109,12 +113,13 @@ const Chat: React.FC = () => {
         response.data.response ||
         response.data.summary ||
         response.data.learning_plan ||
+        response.data.feedback ||
         "Sorry, I couldn't generate a response";
 
       const aiMessage: Message = {
-        id: Date.now() + 1,
+        role: "assistant",
         content: aiContent,
-        sender: "ai",
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -122,9 +127,8 @@ const Chat: React.FC = () => {
       console.error("Error:", error);
 
       const errorMessage: Message = {
-        id: Date.now() + 1,
+        role: "assistant",
         content: "Oops! Something went wrong. Please try again.",
-        sender: "ai",
       };
 
       setMessages((prev) => [...prev, errorMessage]);
@@ -204,7 +208,6 @@ const Chat: React.FC = () => {
     }
 
     try {
-      setIsProcessingAudio(true);
       const formData = new FormData();
       formData.append("text", text);
 
@@ -231,8 +234,6 @@ const Chat: React.FC = () => {
     } catch (error) {
       console.error("Error generating speech:", error);
       setIsSpeaking(false);
-    } finally {
-      setIsProcessingAudio(false);
     }
   };
 
@@ -240,10 +241,9 @@ const Chat: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await axios.post(
-        "http://127.0.0.1:5000/process-content",
+        "http://127.0.0.1:5000/process-interaction",
         {
-          notes: `Please explain this more deeply: ${content}`,
-          files: [],
+          input: `Please explain this more deeply: ${content}`,
         }
       );
 
@@ -253,9 +253,9 @@ const Chat: React.FC = () => {
         "I couldn't generate a deeper explanation";
 
       const aiMessage: Message = {
-        id: Date.now(),
+        role: "assistant",
         content: aiContent,
-        sender: "ai",
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -264,9 +264,8 @@ const Chat: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now(),
+          role: "assistant",
           content: "Sorry, I couldn't generate a deeper explanation.",
-          sender: "ai",
         },
       ]);
     } finally {
@@ -278,10 +277,9 @@ const Chat: React.FC = () => {
     setIsLoading(true);
     try {
       const response = await axios.post(
-        "http://127.0.0.1:5000/process-content",
+        "http://127.0.0.1:5000/process-interaction",
         {
-          notes: `Please create a quick test to verify understanding of this content: ${content}`,
-          files: [],
+          input: `Please create a quick test to verify understanding of this content: ${content}`,
         }
       );
 
@@ -291,9 +289,9 @@ const Chat: React.FC = () => {
         "I couldn't generate a test";
 
       const aiMessage: Message = {
-        id: Date.now(),
+        role: "assistant",
         content: aiContent,
-        sender: "ai",
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -302,9 +300,8 @@ const Chat: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now(),
+          role: "assistant",
           content: "Sorry, I couldn't generate a test.",
-          sender: "ai",
         },
       ]);
     } finally {
@@ -312,14 +309,20 @@ const Chat: React.FC = () => {
     }
   };
 
+  const handleOptionClick = async (option: string) => {
+    setInput(option);
+    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+    await handleSubmit(fakeEvent);
+  };
+
   const handleInteractiveQuestions = async (content: string) => {
     setIsLoading(true);
+    console.log("handling interactive question");
     try {
       const response = await axios.post(
-        "http://127.0.0.1:5000/process-content",
+        "http://127.0.0.1:5000/process-interaction",
         {
-          notes: `Please create interactive questions to verify understanding of this content: ${content}`,
-          files: [],
+          input: `Generate a quiz about the following content:\n\n${content}`
         }
       );
 
@@ -329,9 +332,9 @@ const Chat: React.FC = () => {
         "I couldn't generate interactive questions";
 
       const aiMessage: Message = {
-        id: Date.now(),
+        role: "assistant",
         content: aiContent,
-        sender: "ai",
+        options: response.data.subtopics
       };
 
       setMessages((prev) => [...prev, aiMessage]);
@@ -340,9 +343,8 @@ const Chat: React.FC = () => {
       setMessages((prev) => [
         ...prev,
         {
-          id: Date.now(),
+          role: "assistant",
           content: "Sorry, I couldn't generate interactive questions.",
-          sender: "ai",
         },
       ]);
     } finally {
@@ -362,19 +364,20 @@ const Chat: React.FC = () => {
         <div className="flex flex-col h-full">
           <div
             ref={containerRef}
-            className="messages-container flex-grow overflow-y-auto mb-4 space-y-6 pb-[160px] max-w-4xl mx-auto"
+            className="messages-container flex-grow overflow-y-auto mb-4 space-y-4 pb-[160px]"
           >
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
                 <motion.div
-                  key={message.id}
-                  className={`flex justify-center`}
+                  className={`flex ${
+                    message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
                   initial={{
                     opacity: 0,
                     y: 20,
-                    scale: 0.95
+                    x: message.role === "user" ? 20 : -20,
                   }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  animate={{ opacity: 1, y: 0, x: 0 }}
                   exit={{
                     opacity: 0,
                     scale: 0.95,
@@ -384,13 +387,13 @@ const Chat: React.FC = () => {
                   layout
                 >
                   <div
-                    className={`w-[85%] p-6 rounded-2xl ${
-                      message.sender === "user"
-                        ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white"
-                        : "bg-gradient-to-br from-gray-50 to-gray-100 text-gray-900"
-                    } shadow-sm`}
+                    className={`max-w-[70%] p-4 rounded-xl ${
+                      message.role === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-900"
+                    }`}
                   >
-                    {message.sender === "ai" ? (
+                    {message.role === "assistant" ? (
                       <>
                         <ReactMarkdown
                           remarkPlugins={[remarkMath]}
@@ -418,6 +421,20 @@ const Chat: React.FC = () => {
                         >
                           {message.content}
                         </ReactMarkdown>
+                        {message.options && message.options.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            {message.options.map((option, i) => (
+                              <Button
+                                key={i}
+                                variant="outline"
+                                className="w-full text-left justify-start"
+                                onClick={() => handleOptionClick(option)}
+                              >
+                                {option}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex gap-2 mt-3">
                           <Button
                             variant="outline"
@@ -436,20 +453,6 @@ const Chat: React.FC = () => {
                             }
                           >
                             Take Quiz
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => toggleSpeech(message.content)}
-                            disabled={isProcessingAudio}
-                          >
-                            {isProcessingAudio ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : (
-                              <Speaker className="h-4 w-4 mr-1" />
-                            )}
-                            {isSpeaking ? "Stop" : isProcessingAudio ? "Processing..." : "Listen"}
                           </Button>
                         </div>
                       </>

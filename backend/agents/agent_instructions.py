@@ -241,7 +241,7 @@ RULES:
 3. Note areas for review
 4. Suggest improvements
 5. Maintain clarity
-6. In the summary, you should end with how the user responded to the last agent, and the name of the agent.
+6. You should end with how the user responded to the last agent, and the name of the agent.
 
 INPUT FORMAT:
 {
@@ -254,7 +254,8 @@ OUTPUT FORMAT:
 {
   "summary": "Session summary",
   "key_points": ["Key point 1", "Key point 2"],
-  "recommendations": ["Recommendation 1", "Recommendation 2"]
+  "recommendations": ["Recommendation 1", "Recommendation 2"],
+  "last_response_information": "Specific user inputs and agent name"
 }
 
 RESPONSE REQUIREMENTS:
