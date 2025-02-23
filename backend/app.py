@@ -8,11 +8,24 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import google.generativeai as genai
 
+from agents import AgentService, SafetyStatus
+
 load_dotenv()
 app = Flask(__name__)
-CORS(app)
 
-genai.configure(api_key=f"{os.environ.get('GEMINI_API_KEY')}")
+# Configure CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],  # Frontend URLs
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True,
+        "max_age": 600
+    }
+})
+
+# Initialize the agent service
+agent_service = AgentService(api_key=os.environ.get('GEMINI_API_KEY'))
 
 DOWNLOADS_DIR = "downloads/"
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
@@ -56,27 +69,66 @@ def split_text_for_rag(text):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     return text_splitter.split_text(text)
 
-@app.route("/process-content", methods=["POST"])
+@app.route('/process-interaction', methods=['POST'])
+def process_interaction():
+    """Process user interaction with the AI agents."""
+    try:
+        data = request.json
+        user_input = data.get('input')
+        
+        if not user_input:
+            return jsonify({
+                'error': 'No input provided'
+            }), 400
+
+        # Process the interaction through the agent service
+        response = agent_service.start_new_topic(user_input)
+        
+        # Convert the response to a dictionary
+        response_dict = response.to_dict()
+        
+        return jsonify(response_dict)
+
+    except Exception as e:
+        print(f"Error processing interaction: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+@app.route('/process-content', methods=['POST'])
 def process_content():
-    data = request.json
-    notes = data.get("notes", "").strip()
-    files = data.get("files", [])
-    
-    extracted_text = notes
-    for file_url in files:
-        pdf_path = download_file(file_url)
-        if pdf_path and pdf_path.endswith(".pdf"):
-            extracted_text += "\n\n" + extract_text_from_pdf(pdf_path)
-    
-    chunks = split_text_for_rag(extracted_text)
-    full_learning_plan = ""
-    
-    for chunk in chunks:
-        learning_module = process_with_gemini(chunk)
-        if learning_module:
-            full_learning_plan += learning_module + "\n\n"
-    
-    return jsonify([{"learning_plan": full_learning_plan}])
+    """Process uploaded content."""
+    try:
+        data = request.json
+        notes = data.get('notes', '')
+        files = data.get('files', [])
+
+        # Process files if any
+        processed_files = []
+        for file_url in files:
+            local_file = download_file(file_url)
+            if local_file:
+                processed_files.append(local_file)
+
+        # TODO: Process the content and generate learning plan
+        # For now, return a mock response
+        response = [{
+            'learning_plan': f"Generated learning plan from {len(processed_files)} files and notes: {notes[:100]}..."
+        }]
+
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"Error processing content: {e}")
+        return jsonify({
+            'error': str(e)
+        }), 500
+
+@app.route("/get-summary", methods=["GET"])
+def get_summary():
+    """Get a summary of the current learning session."""
+    summary = agent_service.get_session_summary()
+    return jsonify(summary.to_dict())
 
 if __name__ == "__main__":
     app.run(debug=True)

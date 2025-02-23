@@ -1,6 +1,5 @@
 "use client";
 
-import { useChat } from "ai/react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
@@ -12,31 +11,42 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-interface ChatMessage {
-  role: string;
+interface Message {
+  role: 'user' | 'assistant';
   content: string;
+  options?: string[];
 }
 
+interface AgentResponse {
+  status: string;
+  explanation: string;
+  subtopics: string[];
+  prerequisites: string[];
+  summary: string;
+}
+
+// API configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
+
 export default function Chat() {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } =
-    useChat();
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [learningPlans, setLearningPlans] = useState<string[]>([]);
-  const [currentPlanIndex, setCurrentPlanIndex] = useState(0);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for any learning plans from the upload process
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
       try {
         const parsedResponse = JSON.parse(savedResponse);
-        if (parsedResponse.status === "success" && parsedResponse.data) {
-
-          const plans = parsedResponse.data
-            .map((item: any) => item.learning_plan)
-            .filter(Boolean);
-          setLearningPlans(plans);
+        if (parsedResponse[0]?.learning_plan) {
+          setMessages([{
+            role: 'assistant',
+            content: parsedResponse[0].learning_plan
+          }]);
         }
       } catch (error) {
         console.error("Error parsing response:", error);
@@ -45,114 +55,123 @@ export default function Chat() {
     }
   }, []);
 
-  const nextPlan = () => {
-    if (currentPlanIndex < learningPlans.length - 1) {
-      setCurrentPlanIndex((prev) => prev + 1);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setIsLoading(true);
+    setError(null);
+
+    // Add user message to chat
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+    try {
+      // Send message to backend with improved fetch configuration
+      const response = await fetch(`${API_BASE_URL}/process-interaction`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ input: userMessage }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const data: AgentResponse = await response.json();
+
+      // Add AI response to chat
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: data.explanation || data.summary || "I'm not sure how to respond to that.",
+        options: data.subtopics?.length > 0 ? data.subtopics : undefined
+      }]);
+
+    } catch (error) {
+      console.error('Error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setError(errorMessage);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Sorry, I encountered an error: ${errorMessage}. Please try again.`
+      }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const prevPlan = () => {
-    if (currentPlanIndex > 0) {
-      setCurrentPlanIndex((prev) => prev - 1);
-    }
+  const handleOptionClick = async (option: string) => {
+    setInput(option);
+    const fakeEvent = { preventDefault: () => {} } as React.FormEvent;
+    await handleSubmit(fakeEvent);
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <Card className="w-full max-w-4xl">
         <CardHeader>
-          <CardTitle>Learning Plans</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[70vh] overflow-y-auto">
-          {learningPlans.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center mb-4">
-                <Button
-                  variant="outline"
-                  onClick={prevPlan}
-                  disabled={currentPlanIndex === 0}
-                >
-                  <ChevronLeft className="h-4 w-4 mr-2" />
-                  Previous Plan
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Plan {currentPlanIndex + 1} of {learningPlans.length}
-                </span>
-                <Button
-                  variant="outline"
-                  onClick={nextPlan}
-                  disabled={currentPlanIndex === learningPlans.length - 1}
-                >
-                  Next Plan
-                  <ChevronRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-
-              <Card className="bg-white">
-                <CardContent className="p-6">
-                  <div className="prose max-w-none">
-                    <ReactMarkdown>
-                      {learningPlans[currentPlanIndex]}
-                    </ReactMarkdown>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {chatHistory.map((m, index) => (
-                <div
-                  key={index}
-                  className={`mb-4 ${
-                    m.role === "user" ? "text-right" : "text-left"
-                  }`}
-                >
-                  <span
-                    className={`inline-block p-2 rounded-lg ${
-                      m.role === "user"
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200 text-black"
-                    }`}
-                  >
-                    <ReactMarkdown>{m.content}</ReactMarkdown>
-                  </span>
-                </div>
-              ))}
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={`mb-4 ${
-                    m.role === "user" ? "text-right" : "text-left"
-                  }`}
-                >
-                  <span
-                    className={`inline-block p-2 rounded-lg ${
-                      m.role === "user"
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200 text-black"
-                    }`}
-                  >
-                    {m.content}
-                  </span>
-                </div>
-              ))}
-              {isLoading && (
-                <div className="text-left">
-                  <span className="inline-block p-2 rounded-lg bg-gray-200 text-black">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  </span>
-                </div>
-              )}
+          <CardTitle>MindFlow Chat</CardTitle>
+          {error && (
+            <div className="text-red-500 text-sm mt-2">
+              Error: {error}
             </div>
           )}
+        </CardHeader>
+        <CardContent className="h-[70vh] overflow-y-auto">
+          <div className="space-y-4">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
+                }`}
+              >
+                <div
+                  className={`max-w-[80%] p-4 rounded-xl ${
+                    message.role === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100'
+                  }`}
+                >
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                  {message.options && message.options.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {message.options.map((option, i) => (
+                        <Button
+                          key={i}
+                          variant="outline"
+                          className="w-full text-left justify-start"
+                          onClick={() => handleOptionClick(option)}
+                        >
+                          {option}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 p-4 rounded-xl">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
         <CardFooter>
           <form onSubmit={handleSubmit} className="flex w-full space-x-2">
             <Input
               value={input}
-              onChange={handleInputChange}
+              onChange={(e) => setInput(e.target.value)}
               placeholder="Type your message..."
               className="flex-grow"
+              disabled={isLoading}
             />
             <Button type="submit" disabled={isLoading}>
               Send
