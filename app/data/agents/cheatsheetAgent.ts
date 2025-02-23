@@ -1,5 +1,3 @@
-import { CheatsheetAgentInput, CheatsheetAgentOutput } from '../../types/newAgents';
-
 export const CHEATSHEET_AGENT_INSTRUCTIONS = `You are MindFlow's Cheatsheet Agent. Your role is to create concise, effective cheatsheets for quick reference.
 
 FUNCTION:

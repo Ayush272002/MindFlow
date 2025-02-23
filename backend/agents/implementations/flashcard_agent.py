@@ -16,7 +16,6 @@ def handle_flashcard(
         input_data
     )
     
-    # Ensure the response matches expected format
     return FlashcardAgentOutput(
         csv_content=result.get('csv_content', 'question,answer\nWhat is this topic about?,Basic introduction')
     ) 

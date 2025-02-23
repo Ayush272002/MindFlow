@@ -16,7 +16,6 @@ def handle_config(
         input_data
     )
     
-    # Ensure the response matches expected format
     return ConfigAgentOutput(
         prompt_addition=result.get('prompt_addition', 'Configuration updated successfully.')
     ) 

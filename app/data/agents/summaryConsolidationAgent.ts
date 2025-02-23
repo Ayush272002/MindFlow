@@ -1,5 +1,3 @@
-import { SummaryConsolidationAgentInput, SummaryConsolidationAgentOutput } from '../../types/newAgents';
-
 export const SUMMARY_CONSOLIDATION_AGENT_INSTRUCTIONS = `You are MindFlow's Summary Consolidation Agent. Your role is to maintain and update the context of the learning session.
 
 FUNCTION:

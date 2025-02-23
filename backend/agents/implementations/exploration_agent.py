@@ -15,8 +15,7 @@ def handle_exploration(
         EXPLORATION_AGENT_INSTRUCTIONS,
         input_data
     )
-    
-    # Ensure the response matches expected format
+
     return ExplorationAgentOutput(
         status=SafetyStatus.SAFE,
         explanation=result.get('explanation', 'Let me help you explore this topic.'),
