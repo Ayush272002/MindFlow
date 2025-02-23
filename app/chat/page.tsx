@@ -27,7 +27,6 @@ interface AgentResponse {
   summary: string;
 }
 
-// API configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:5000';
 
 export default function Chat() {
@@ -41,7 +40,6 @@ export default function Chat() {
   const [sessionHistory, setSessionHistory] = useState<{ content: string, timestamp: Date }[]>([]);
 
   useEffect(() => {
-    // Check for any learning plans from the upload process
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
       try {
@@ -68,11 +66,9 @@ export default function Chat() {
     setIsLoading(true);
     setError(null);
 
-    // Add user message to chat
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
 
     try {
-      // Send message to backend with improved fetch configuration
       const response = await fetch(`${API_BASE_URL}/process-interaction`, {
         method: 'POST',
         headers: {
@@ -88,7 +84,6 @@ export default function Chat() {
 
       const data: AgentResponse = await response.json();
 
-      // Add AI response to chat
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: data.explanation || data.summary || "I'm not sure how to respond to that.",
