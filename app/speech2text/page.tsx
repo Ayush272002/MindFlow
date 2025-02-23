@@ -62,7 +62,7 @@ const Home: React.FC = () => {
         formData.append("file", audioFile);
 
         try {
-            const response = await axios.post("http://localhost:5000/speech2text", formData, {
+            const response = await axios.post("http://127.0.0.1:5000/speech2text", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
             });
             setTranscription(response.data.text);
