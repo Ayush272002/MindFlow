@@ -251,6 +251,8 @@ class AgentService:
             entry['content'] for entry in self.learning_state.session_history
         )
 
+        print("Agent: ", classification.next_agent)
+
         match classification.next_agent:
             case 'exploration':
                 input_data = ExplorationAgentInput(
