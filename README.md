@@ -23,7 +23,7 @@ MindFlow supports multiple modalities—including **interactive quizzes**—to m
 
 - **Frontend:** React, Next.js
 - **Backend:** Flask
-- **AI & NLP:** Custom RAG pipeline, OpenAI, in-house text-to-speech & speech-to-text
+- **AI & NLP:** Custom RAG pipeline, OpenAI, deep learning based text-to-speech & speech-to-text
 - **Integrations:** LangChain, Hugging Face
 
 ## Demo Video
