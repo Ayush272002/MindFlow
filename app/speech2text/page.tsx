@@ -2,6 +2,28 @@
 
 import {useState, useRef} from "react";
 import axios from "axios";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import Navbar from "@/components/custom/navbar";
+
+const fadeInUp = {
+    initial: { opacity: 0, y: 15 },
+    animate: { opacity: 1, y: 0 },
+    transition: {
+        duration: 0.7,
+        ease: [0.22, 1, 0.36, 1]
+    }
+};
+
+const staggerContainer = {
+    animate: {
+        transition: {
+            staggerChildren: 0.3,
+            delayChildren: 0.2,
+            ease: [0.22, 1, 0.36, 1]
+        }
+    }
+};
 
 const Home: React.FC = () => {
     const [audioFile, setAudioFile] = useState<File | null>(null);
@@ -72,23 +94,92 @@ const Home: React.FC = () => {
     };
 
     return (
-        <div>
-            <h1>Speech-to-Text</h1>
+        <main className="min-h-screen bg-[#fafafa]">
+            <Navbar loggedIn={false} />
+            
+            <section className="container mx-auto px-4 py-24">
+                <motion.div
+                    className="max-w-4xl mx-auto"
+                    initial="initial"
+                    animate="animate"
+                    variants={staggerContainer}
+                >
+                    <motion.h1
+                        className="text-5xl md:text-6xl font-bold text-gray-900 mb-8 text-center"
+                        variants={fadeInUp}
+                    >
+                        Speech to Text
+                        <motion.span
+                            className="block mt-2 pb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-violet-600"
+                            variants={fadeInUp}
+                        >
+                            Conversion
+                        </motion.span>
+                    </motion.h1>
 
-            {/* File Upload */}
-            <input type="file" accept="audio/*" onChange={handleFileUpload} />
+                    <motion.div
+                        className="bg-white rounded-[2.5rem] p-12 shadow-sm"
+                        variants={fadeInUp}
+                    >
+                        <div className="space-y-8">
+                            {/* File Upload */}
+                            <div className="flex flex-col items-center gap-4">
+                                <label
+                                    htmlFor="audio-upload"
+                                    className="w-full max-w-md p-8 border-2 border-dashed border-gray-300 rounded-2xl text-center cursor-pointer hover:border-blue-500 transition-colors"
+                                >
+                                    <div className="text-gray-600">
+                                        Click to upload audio or drag and drop
+                                        {audioFile && <p className="mt-2 text-blue-600">{audioFile.name}</p>}
+                                    </div>
+                                </label>
+                                <input
+                                    id="audio-upload"
+                                    type="file"
+                                    accept="audio/*"
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                />
+                            </div>
 
-            {/* Voice Recording */}
-            <button onClick={recording ? stopRecording : startRecording}>
-                {recording ? "Stop Recording" : "Start Recording"}
-            </button>
+                            {/* Voice Recording */}
+                            <div className="flex justify-center gap-4">
+                                <Button
+                                    onClick={recording ? stopRecording : startRecording}
+                                    className={`px-8 py-6 text-lg rounded-xl ${
+                                        recording
+                                            ? "bg-red-500 hover:bg-red-600"
+                                            : "bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90"
+                                    } text-white`}
+                                >
+                                    {recording ? "Stop Recording" : "Start Recording"}
+                                </Button>
 
-            {/* Transcribe */}
-            <button onClick={handleTranscribe}>Transcribe</button>
+                                <Button
+                                    onClick={handleTranscribe}
+                                    className="px-8 py-6 text-lg rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90 text-white"
+                                    disabled={!audioFile}
+                                >
+                                    Transcribe
+                                </Button>
+                            </div>
 
-            <h2>Transcription:</h2>
-            <p>{transcription}</p>
-        </div>
+                            {/* Transcription Result */}
+                            {transcription && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="mt-8 p-6 bg-gray-50 rounded-xl"
+                                >
+                                    <h2 className="text-2xl font-semibold mb-4 text-gray-900">Transcription:</h2>
+                                    <p className="text-lg text-gray-700 whitespace-pre-wrap">{transcription}</p>
+                                </motion.div>
+                            )}
+                        </div>
+                    </motion.div>
+                </motion.div>
+            </section>
+        </main>
     );
 };
 
