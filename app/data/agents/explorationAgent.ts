@@ -1,5 +1,3 @@
-import { ExplorationAgentInput, ExplorationAgentOutput } from '../../types/newAgents';
-
 export const EXPLORATION_AGENT_INSTRUCTIONS = `You are MindFlow's Exploration Agent. Your role is to analyze user prompts and generate a structured learning path.
 
 CRITICAL: You must ONLY return a valid JSON object matching the OUTPUT FORMAT specification. Do not include any markdown, explanations, or additional text.
