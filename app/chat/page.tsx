@@ -36,6 +36,10 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [currentTopic, setCurrentTopic] = useState<string | null>(null);
+  const [activeSubtopic, setActiveSubtopic] = useState<string | null>(null);
+  const [sessionHistory, setSessionHistory] = useState<{ content: string, timestamp: Date }[]>([]);
+
   useEffect(() => {
     // Check for any learning plans from the upload process
     const savedResponse = localStorage.getItem("chatResponse");
@@ -74,7 +78,7 @@ export default function Chat() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ input: userMessage }),
+        body: JSON.stringify({ input: userMessage, current_topic: currentTopic, active_subtopic: activeSubtopic, session_history: sessionHistory }),
         credentials: 'include',
       });
 
@@ -90,6 +94,8 @@ export default function Chat() {
         content: data.explanation || data.summary || "I'm not sure how to respond to that.",
         options: data.subtopics?.length > 0 ? data.subtopics : undefined
       }]);
+
+      setSessionHistory(prev => [...prev, { content: data.summary, timestamp: new Date() }]);
 
     } catch (error) {
       console.error('Error:', error);

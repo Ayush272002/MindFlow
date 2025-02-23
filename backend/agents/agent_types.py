@@ -224,7 +224,6 @@ class LearningState:
     learning_path: List[str]
     progress: Dict[str, List[str]]
     session_history: List[Dict[str, Any]]
-    difficulty: str
     last_quiz_score: Optional[float] = None
     last_quiz_answer: Optional[str] = None
     last_question: Optional[str] = None

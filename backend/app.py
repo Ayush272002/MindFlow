@@ -80,9 +80,13 @@ def process_interaction():
             return jsonify({
                 'error': 'No input provided'
             }), 400
+                
+        current_topic = data.get('current_topic')
+        active_subtopic = data.get('active_subtopic')
+        session_history = data.get('session_history')
 
         # Process the interaction through the agent service
-        response = agent_service.start_new_topic(user_input)
+        response = agent_service.start_new_topic(user_input, current_topic=current_topic, active_subtopic=active_subtopic, session_history=session_history)
         
         # Convert the response to a dictionary
         response_dict = response.to_dict()
@@ -94,7 +98,7 @@ def process_interaction():
         return jsonify({
             'error': str(e)
         }), 500
-
+    
 @app.route('/process-content', methods=['POST'])
 def process_content():
     """Process uploaded content."""
