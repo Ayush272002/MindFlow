@@ -251,6 +251,9 @@ export default function UploadModule() {
         files: uploadedFiles.map((file) => file.url),
       };
 
+      // Debug log
+      console.log("Sending payload:", payload);
+
       const response = await fetch("http://127.0.0.1:5000/process-content", {
         method: "POST",
         headers: {
@@ -259,9 +262,17 @@ export default function UploadModule() {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error("Failed to process content");
-
       const data = await response.json();
+      // Debug log
+      console.log("Response data:", data);
+
+      if (!response.ok) {
+        // Get the error message from the backend response
+        const errorMessage = data.error || "Failed to process content";
+        console.error("Backend error:", errorMessage); // Debug log
+        throw new Error(errorMessage);
+      }
+
       console.log("Processed Data:", data);
       localStorage.setItem("chatResponse", JSON.stringify(data));
 
@@ -272,8 +283,8 @@ export default function UploadModule() {
       setNotes("");
       router.push("/learn/chat");
     } catch (error) {
-      console.error(error);
-      toast.error("There was an error processing your content");
+      console.error("Error details:", error); // Debug log
+      toast.error(error instanceof Error ? error.message : "There was an error processing your content");
     }
 
     setUploading(false);
@@ -357,7 +368,7 @@ export default function UploadModule() {
                       Drop your files here
                     </p>
                     <p className="text-gray-600 mt-2">
-                      or click to select files
+                      or click to select PDFs
                     </p>
                   </div>
                 </motion.div>

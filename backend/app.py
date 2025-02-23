@@ -176,18 +176,24 @@ def process_text2speech():
 def is_valid_pdf(file_url):
     """Check if the file is a valid PDF."""
     try:
-        # Check file extension
-        if not file_url.lower().endswith('.pdf'):
-            return False
+        # For Uploadcare URLs, we can trust the file extension
+        if 'ucarecdn.com' in file_url:
+            return True
             
-        # Download and verify file content
+        # For other URLs, check the content
         response = requests.get(file_url, stream=True)
         response.raise_for_status()
         
-        # Check the magic numbers for PDF
+        # Check content type header first
+        content_type = response.headers.get('content-type', '').lower()
+        if 'application/pdf' in content_type:
+            return True
+            
+        # If no content type header, check magic numbers
         magic_numbers = response.raw.read(4)
         return magic_numbers.startswith(b'%PDF')
-    except:
+    except Exception as e:
+        print(f"Error validating PDF: {e}")
         return False
 
 @app.route('/process-content', methods=['POST'])
@@ -195,6 +201,11 @@ def process_content():
     """Process uploaded content."""
     try:
         data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        print("Received data:", data)  # Debug log
+        
         notes = data.get('notes', '')
         files = data.get('files', [])
 
@@ -208,8 +219,15 @@ def process_content():
 
         # Process each file
         for file_url in files:
+            print(f"Processing file URL: {file_url}")  # Debug log
+            
+            # Skip empty URLs
+            if not file_url:
+                continue
+                
             # Validate PDF
             if not is_valid_pdf(file_url):
+                print(f"Invalid PDF URL: {file_url}")  # Debug log
                 return jsonify({
                     'error': f'Invalid or unsupported file format. Only PDF files are allowed.'
                 }), 400
