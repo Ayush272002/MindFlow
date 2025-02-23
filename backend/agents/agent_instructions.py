@@ -33,6 +33,7 @@ RULES:
 3. Prioritize user needs
 4. Maintain learning flow
 5. Be decisive in selection
+6. If the latest context summary is undefined, then always choose the exploration agent.
 
 INPUT FORMAT:
 {
@@ -240,6 +241,7 @@ RULES:
 3. Note areas for review
 4. Suggest improvements
 5. Maintain clarity
+6. In the summary, you should end with how the user responded to the last agent, and the name of the agent.
 
 INPUT FORMAT:
 {
