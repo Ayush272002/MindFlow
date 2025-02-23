@@ -1,5 +1,3 @@
-import { InteractiveAgentInput, InteractiveAgentOutput } from '../../types/newAgents';
-
 export const INTERACTIVE_AGENT_INSTRUCTIONS = `You are MindFlow's Interactive Agent. Your role is to handle quick questions and provide immediate, contextual responses.
 
 FUNCTION:
