@@ -5,6 +5,7 @@ import axios from "axios";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/custom/navbar";
+import { Loader2 } from "lucide-react";
 
 const fadeInUp = {
     initial: { opacity: 0, y: 15 },
@@ -29,6 +30,7 @@ const Home: React.FC = () => {
     const [audioFile, setAudioFile] = useState<File | null>(null);
     const [transcription, setTranscription] = useState<string>("");
     const [recording, setRecording] = useState<boolean>(false);
+    const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioChunks = useRef<Blob[]>([]);
 
@@ -82,6 +84,7 @@ const Home: React.FC = () => {
 
         const formData = new FormData();
         formData.append("file", audioFile);
+        setIsTranscribing(true);
 
         try {
             const response = await axios.post("http://127.0.0.1:5000/speech2text", formData, {
@@ -90,6 +93,8 @@ const Home: React.FC = () => {
             setTranscription(response.data.text);
         } catch (error) {
             console.error("Error:", error);
+        } finally {
+            setIsTranscribing(false);
         }
     };
 
@@ -150,17 +155,28 @@ const Home: React.FC = () => {
                                         recording
                                             ? "bg-red-500 hover:bg-red-600"
                                             : "bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90"
-                                    } text-white`}
+                                    } text-white relative`}
                                 >
-                                    {recording ? "Stop Recording" : "Start Recording"}
+                                    {recording ? (
+                                        "Stop Recording"
+                                    ) : (
+                                        "Start Recording"
+                                    )}
                                 </Button>
 
                                 <Button
                                     onClick={handleTranscribe}
-                                    className="px-8 py-6 text-lg rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90 text-white"
-                                    disabled={!audioFile}
+                                    className="px-8 py-6 text-lg rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 hover:opacity-90 text-white relative"
+                                    disabled={!audioFile || isTranscribing}
                                 >
-                                    Transcribe
+                                    {isTranscribing ? (
+                                        <div className="flex items-center gap-2">
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                            <span>Processing...</span>
+                                        </div>
+                                    ) : (
+                                        "Transcribe"
+                                    )}
                                 </Button>
                             </div>
 
