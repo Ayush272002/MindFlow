@@ -35,6 +35,9 @@ const Chat: React.FC = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunks = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [conversationPhase, setConversationPhase] = useState<
+    "initial" | "learning" | "questions"
+  >("initial");
 
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
@@ -49,7 +52,7 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [scrollToBottom, messages]);
+  }, [scrollToBottom]);
 
   useEffect(() => {
     const savedResponse = localStorage.getItem("chatResponse");
@@ -61,6 +64,29 @@ const Chat: React.FC = () => {
       localStorage.removeItem("chatResponse");
     }
   }, []);
+
+  const handleOptionSelect = (option: "learning" | "questions") => {
+    setConversationPhase(option);
+    const optionMessage: Message = {
+      id: Date.now(),
+      content:
+        option === "learning"
+          ? "I'd like to learn more about this topic."
+          : "I have some questions about this topic.",
+      sender: "user",
+    };
+    setMessages((prev) => [...prev, optionMessage]);
+
+    const aiResponse: Message = {
+      id: Date.now() + 1,
+      content:
+        option === "learning"
+          ? "I'll help you dive deeper into this topic. What specific aspect would you like to explore further?"
+          : "I'll be happy to answer your questions. What would you like to know?",
+      sender: "ai",
+    };
+    setMessages((prev) => [...prev, aiResponse]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,16 +101,15 @@ const Chat: React.FC = () => {
       setIsLoading(true);
 
       try {
-        // Get response from backend
         const response = await axios.post(
           "http://127.0.0.1:5000/process-content",
           {
             notes: input,
-            files: [], // Add file handling if needed
+            files: [],
+            phase: conversationPhase, 
           }
         );
 
-        // Extract just the module content from the response
         const moduleContent =
           response.data.data[0]?.module || "No response generated";
 
@@ -281,6 +306,30 @@ const Chat: React.FC = () => {
                   </div>
                 </motion.div>
               ))}
+              {messages.length === 2 &&
+                messages[1].sender === "ai" &&
+                conversationPhase === "initial" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-center gap-4 mt-4"
+                  >
+                    <Button
+                      onClick={() => handleOptionSelect("learning")}
+                      variant="outline"
+                      className="bg-blue-50 hover:bg-blue-100"
+                    >
+                      Learn More
+                    </Button>
+                    <Button
+                      onClick={() => handleOptionSelect("questions")}
+                      variant="outline"
+                      className="bg-blue-50 hover:bg-blue-100"
+                    >
+                      Ask Questions
+                    </Button>
+                  </motion.div>
+                )}
               {isLoading && (
                 <motion.div
                   key="loading"
