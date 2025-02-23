@@ -1,39 +1,47 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useRef, useEffect, useCallback } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { MicrophoneIcon, PaperAirplaneIcon, StopIcon } from "@heroicons/react/24/solid"
-import { Loader2 } from "lucide-react"
-import Navbar from "@/components/custom/navbar"
-import axios from "axios"
-import ReactMarkdown from 'react-markdown'
+import type React from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  MicrophoneIcon,
+  PaperAirplaneIcon,
+  StopIcon,
+  SpeakerWaveIcon,
+  SpeakerXMarkIcon,
+} from "@heroicons/react/24/solid";
+import { Loader2 } from "lucide-react";
+import Navbar from "@/components/custom/navbar";
+import axios from "axios";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
-  id: number
-  content: string
-  sender: "user" | "ai"
+  id: number;
+  content: string;
+  sender: "user" | "ai";
 }
 
 const Chat: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
-  const [recording, setRecording] = useState(false)
-  const [isTranscribing, setIsTranscribing] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunks = useRef<Blob[]>([])
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunks = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   const scrollToBottom = useCallback(() => {
     if (containerRef.current) {
       setTimeout(() => {
         containerRef.current?.scrollTo({
           top: containerRef.current.scrollHeight,
-          behavior: 'smooth'
+          behavior: "smooth",
         });
       }, 100);
     }
@@ -41,61 +49,64 @@ const Chat: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, isLoading]);
+  }, [scrollToBottom, messages]);
 
   useEffect(() => {
     const savedResponse = localStorage.getItem("chatResponse");
     if (savedResponse) {
       const parsedResponse = JSON.parse(savedResponse);
-      const moduleContent = parsedResponse.data[0]?.module || "No content available";
-      setMessages([
-        { id: Date.now(), content: moduleContent, sender: "ai" },
-      ]);
+      const moduleContent =
+        parsedResponse.data[0]?.module || "No content available";
+      setMessages([{ id: Date.now(), content: moduleContent, sender: "ai" }]);
       localStorage.removeItem("chatResponse");
     }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (input.trim()) {
       const newMessage: Message = {
         id: Date.now(),
         content: input,
         sender: "user",
-      }
-      setMessages((prevMessages) => [...prevMessages, newMessage])
-      setInput("")
-      setIsLoading(true)
-      
+      };
+      setMessages((prevMessages) => [...prevMessages, newMessage]);
+      setInput("");
+      setIsLoading(true);
+
       try {
         // Get response from backend
-        const response = await axios.post('http://127.0.0.1:5000/process-content', {
-          notes: input,
-          files: [] // Add file handling if needed
-        });
+        const response = await axios.post(
+          "http://127.0.0.1:5000/process-content",
+          {
+            notes: input,
+            files: [], // Add file handling if needed
+          }
+        );
 
         // Extract just the module content from the response
-        const moduleContent = response.data.data[0]?.module || "No response generated";
-        
+        const moduleContent =
+          response.data.data[0]?.module || "No response generated";
+
         const aiResponse: Message = {
           id: Date.now() + 1,
           content: moduleContent,
           sender: "ai",
-        }
-        setMessages((prevMessages) => [...prevMessages, aiResponse])
+        };
+        setMessages((prevMessages) => [...prevMessages, aiResponse]);
       } catch (error) {
-        console.error('Error:', error);
+        console.error("Error:", error);
         const errorMessage: Message = {
           id: Date.now() + 1,
           content: "Sorry, there was an error processing your request.",
           sender: "ai",
-        }
-        setMessages((prevMessages) => [...prevMessages, errorMessage])
+        };
+        setMessages((prevMessages) => [...prevMessages, errorMessage]);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     }
-  }
+  };
 
   const startRecording = async () => {
     try {
@@ -111,7 +122,9 @@ const Chat: React.FC = () => {
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunks.current, { type: "audio/wav" });
-        const audioFile = new File([audioBlob], "recorded_audio.wav", { type: "audio/wav" });
+        const audioFile = new File([audioBlob], "recorded_audio.wav", {
+          type: "audio/wav",
+        });
         audioChunks.current = [];
 
         // Send to backend for transcription
@@ -120,10 +133,14 @@ const Chat: React.FC = () => {
         formData.append("file", audioFile);
 
         try {
-          const response = await axios.post("http://127.0.0.1:5000/speech2text", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
-          setInput(prev => prev + (prev ? " " : "") + response.data.text);
+          const response = await axios.post(
+            "http://127.0.0.1:5000/speech2text",
+            formData,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+            }
+          );
+          setInput((prev) => prev + (prev ? " " : "") + response.data.text);
         } catch (error) {
           console.error("Error:", error);
         } finally {
@@ -142,9 +159,50 @@ const Chat: React.FC = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
       setRecording(false);
-      
+
       // Stop all tracks on the stream
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current.stream
+        .getTracks()
+        .forEach((track) => track.stop());
+    }
+  };
+
+  const toggleSpeech = async (text: string) => {
+    if (isSpeaking) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+      setIsSpeaking(false);
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("text", text);
+
+      const response = await axios.post(
+        "http://127.0.0.1:5000/process-text2speech",
+        formData,
+        {
+          responseType: "blob",
+        }
+      );
+
+      const audioBlob = new Blob([response.data], { type: "audio/wav" });
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.onended = () => {
+          setIsSpeaking(false);
+          URL.revokeObjectURL(audioUrl);
+        };
+        audioRef.current.play();
+        setIsSpeaking(true);
+      }
+    } catch (error) {
+      console.error("Error generating speech:", error);
+      setIsSpeaking(false);
     }
   };
 
@@ -158,31 +216,65 @@ const Chat: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <div className="flex flex-col h-full">
-          <div ref={containerRef} className="messages-container flex-grow overflow-y-auto mb-4 space-y-4 pb-[160px]">
+          <div
+            ref={containerRef}
+            className="messages-container flex-grow overflow-y-auto mb-4 space-y-4 pb-[160px]"
+          >
             <AnimatePresence mode="popLayout">
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
-                  className={`flex ${message.sender === "user" ? "justify-end" : "justify-start"}`}
-                  initial={{ opacity: 0, y: 20, x: message.sender === "user" ? 20 : -20 }}
+                  className={`flex ${
+                    message.sender === "user" ? "justify-end" : "justify-start"
+                  }`}
+                  initial={{
+                    opacity: 0,
+                    y: 20,
+                    x: message.sender === "user" ? 20 : -20,
+                  }}
                   animate={{ opacity: 1, y: 0, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                  exit={{
+                    opacity: 0,
+                    scale: 0.95,
+                    transition: { duration: 0.2 },
+                  }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
                   layout
                 >
                   <div
                     className={`max-w-[70%] p-4 rounded-xl ${
-                      message.sender === "user" ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
+                      message.sender === "user"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-900"
                     }`}
                   >
                     {message.sender === "ai" ? (
-                      <ReactMarkdown
-                        components={{
-                          p: ({node, ...props}) => <p className="prose prose-sm max-w-none dark:prose-invert" {...props} />
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
+                      <div className="relative">
+                        <Button
+                          onClick={() => toggleSpeech(message.content)}
+                          variant="ghost"
+                          size="icon"
+                          className="absolute -right-12 top-0 h-8 w-8 rounded-lg text-gray-500 hover:bg-gray-100"
+                        >
+                          {isSpeaking ? (
+                            <SpeakerXMarkIcon className="h-4 w-4" />
+                          ) : (
+                            <SpeakerWaveIcon className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <ReactMarkdown
+                          components={{
+                            p: ({ node, ...props }) => (
+                              <p
+                                className="prose prose-sm max-w-none dark:prose-invert"
+                                {...props}
+                              />
+                            ),
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       message.content
                     )}
@@ -199,9 +291,18 @@ const Chat: React.FC = () => {
                 >
                   <div className="max-w-[70%] p-4 rounded-xl bg-gray-100">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                      <div
+                        className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
                     </div>
                   </div>
                 </motion.div>
@@ -210,7 +311,10 @@ const Chat: React.FC = () => {
             </AnimatePresence>
           </div>
 
-          <form onSubmit={handleSubmit} className="fixed bottom-0 left-0 right-0 p-6">
+          <form
+            onSubmit={handleSubmit}
+            className="fixed bottom-0 left-0 right-0 p-6"
+          >
             <div className="max-w-[1200px] mx-auto relative">
               <div className="absolute inset-0 bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg -z-10" />
               <div className="relative flex items-end">
@@ -219,7 +323,7 @@ const Chat: React.FC = () => {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
+                      if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
                         handleSubmit(e);
                       }
@@ -236,8 +340,8 @@ const Chat: React.FC = () => {
                         variant="ghost"
                         size="icon"
                         className={`h-9 w-9 rounded-lg transition-colors ${
-                          recording 
-                            ? "text-red-500 bg-red-50 hover:bg-red-100" 
+                          recording
+                            ? "text-red-500 bg-red-50 hover:bg-red-100"
                             : "text-blue-600 hover:bg-blue-50"
                         }`}
                       >
@@ -255,7 +359,7 @@ const Chat: React.FC = () => {
                           animate={{ opacity: [0.5, 1] }}
                           transition={{
                             duration: 1,
-                            repeat: Infinity,
+                            repeat: Number.POSITIVE_INFINITY,
                             repeatType: "reverse",
                             ease: "easeInOut",
                           }}
@@ -268,8 +372,8 @@ const Chat: React.FC = () => {
                       size="icon"
                       disabled={!input.trim() || isLoading}
                       className={`h-9 w-9 rounded-lg transition-colors ${
-                        input.trim() 
-                          ? "text-blue-600 hover:bg-blue-50" 
+                        input.trim()
+                          ? "text-blue-600 hover:bg-blue-50"
                           : "text-gray-400"
                       }`}
                     >
@@ -282,9 +386,9 @@ const Chat: React.FC = () => {
           </form>
         </div>
       </motion.div>
+      <audio ref={audioRef} className="hidden" />
     </div>
-  )
-}
+  );
+};
 
-export default Chat
-
+export default Chat;
