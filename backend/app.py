@@ -173,6 +173,23 @@ def process_text2speech():
     return send_file(wav_file, mimetype='audio/wav', as_attachment=False)
 
 
+def is_valid_pdf(file_url):
+    """Check if the file is a valid PDF."""
+    try:
+        # Check file extension
+        if not file_url.lower().endswith('.pdf'):
+            return False
+            
+        # Download and verify file content
+        response = requests.get(file_url, stream=True)
+        response.raise_for_status()
+        
+        # Check the magic numbers for PDF
+        magic_numbers = response.raw.read(4)
+        return magic_numbers.startswith(b'%PDF')
+    except:
+        return False
+
 @app.route('/process-content', methods=['POST'])
 def process_content():
     """Process uploaded content."""
@@ -191,12 +208,24 @@ def process_content():
 
         # Process each file
         for file_url in files:
+            # Validate PDF
+            if not is_valid_pdf(file_url):
+                return jsonify({
+                    'error': f'Invalid or unsupported file format. Only PDF files are allowed.'
+                }), 400
+                
             local_file = download_file(file_url)
             if local_file:
                 processed_files.append(local_file)
-                text = extract_text_from_pdf(local_file)
-                if text:
-                    all_text.append(text)
+                try:
+                    text = extract_text_from_pdf(local_file)
+                    if text:
+                        all_text.append(text)
+                except Exception as e:
+                    print(f"Error extracting text from PDF: {e}")
+                    return jsonify({
+                        'error': 'Could not extract text from PDF. Please ensure it is a valid PDF file with extractable text.'
+                    }), 400
 
         # If no content was processed, return error
         if not all_text:

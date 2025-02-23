@@ -104,7 +104,7 @@ export default function Home() {
             </div>
             <h3 className="text-2xl font-semibold">Drop Any Content</h3>
             <p className="text-gray-600 text-lg">
-              PDFs, slides, videos, notes - we&apos;ll make them interactive.
+              Lecture slides, research papers, notes - we&apos;ll make them interactive.
             </p>
           </motion.div>
 
